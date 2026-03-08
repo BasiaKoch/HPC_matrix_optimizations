@@ -1,11 +1,13 @@
 #!/bin/bash
 #SBATCH --job-name=chol_scaling
+#SBATCH -A FERGUSSON-SL3-CPU
 #SBATCH --partition=icelake
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=76
 #SBATCH --exclusive
 #SBATCH --time=02:00:00
+#SBATCH --qos=INTR
 #SBATCH --output=results/csd3_scaling_%j.out
 #SBATCH --error=results/csd3_scaling_%j.err
 

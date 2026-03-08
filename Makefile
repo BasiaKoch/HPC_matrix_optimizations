@@ -12,22 +12,33 @@
 #   v2_serial_opt    loop reorder, precompute 1/diag, -O3
 #   v3_openmp        basic OpenMP parallelisation
 #   v4_tuned         OpenMP schedule tuning
+#
+# To add a new version: create src/cholesky_<name>.c and optionally
+# add an ifeq block above to set specific OPT_FLAGS for it.
 
 VERSION  ?= v1_baseline
 
-# Flags per version
+# Base flags — always applied regardless of version
+BASE_CFLAGS = -Wall -Wextra -std=c11 -I include
+
+# Per-version flags (add optimisation and OpenMP as needed)
 ifeq ($(VERSION),v1_baseline)
-  CFLAGS = -O0 -g -Wall -Wextra -std=c11 -I include
+  OPT_FLAGS = -O0 -g
 endif
 ifeq ($(VERSION),v2_serial_opt)
-  CFLAGS = -O3 -march=native -ffast-math -Wall -Wextra -std=c11 -I include
+  OPT_FLAGS = -O3 -march=native -ffast-math
 endif
 ifeq ($(VERSION),v3_openmp)
-  CFLAGS = -O3 -march=native -ffast-math -fopenmp -Wall -Wextra -std=c11 -I include
+  OPT_FLAGS = -O3 -march=native -ffast-math -fopenmp
 endif
 ifeq ($(VERSION),v4_tuned)
-  CFLAGS = -O3 -march=native -ffast-math -fopenmp -Wall -Wextra -std=c11 -I include
+  OPT_FLAGS = -O3 -march=native -ffast-math -fopenmp
 endif
+
+# If VERSION is not listed above, fall back to -O3 (unknown version still compiles)
+OPT_FLAGS ?= -O3 -march=native -ffast-math
+
+CFLAGS = $(BASE_CFLAGS) $(OPT_FLAGS)
 
 CC      = gcc
 LDFLAGS = -lm

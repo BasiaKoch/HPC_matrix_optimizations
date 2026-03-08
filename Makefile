@@ -32,13 +32,16 @@ EXAMPLE_SRC = example/example.c
 EXAMPLE_BIN = example/example
 
 # ── Test program ───────────────────────────────────────────────────────────
-TEST_SRC = test/test_correctness.c
-TEST_BIN = test/test_correctness
+TEST_SRC  = test/test_correctness.c
+TEST_BIN  = test/test_correctness
+
+BENCH_SRC = test/benchmark.c
+BENCH_BIN = test/benchmark
 
 # ── Targets ────────────────────────────────────────────────────────────────
-.PHONY: all lib example test clean
+.PHONY: all lib example test bench clean
 
-all: lib example $(TEST_BIN)
+all: lib example $(TEST_BIN) $(BENCH_BIN)
 
 # Compile library object
 $(LIB_OBJ): $(LIB_SRC) include/mphil_dis_cholesky.h
@@ -61,11 +64,17 @@ example: $(EXAMPLE_BIN)
 $(TEST_BIN): $(TEST_SRC) $(LIB_A)
 	$(CC) $(CFLAGS) $< -Llib -lcholesky $(LDFLAGS) -o $@
 
-# Build and run tests (exit code reflects pass/fail)
+# Build and run correctness tests
 test: $(TEST_BIN)
 	./$(TEST_BIN)
 
+# Benchmark binary
+$(BENCH_BIN): $(BENCH_SRC) $(LIB_A)
+	$(CC) $(CFLAGS) $< -Llib -lcholesky $(LDFLAGS) -o $@
+
+bench: $(BENCH_BIN)
+
 # ── Clean ──────────────────────────────────────────────────────────────────
 clean:
-	rm -f $(LIB_OBJ) $(LIB_A) $(EXAMPLE_BIN) $(TEST_BIN)
+	rm -f $(LIB_OBJ) $(LIB_A) $(EXAMPLE_BIN) $(TEST_BIN) $(BENCH_BIN)
 	rm -rf lib/

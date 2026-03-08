@@ -19,7 +19,7 @@
 VERSION  ?= v1_baseline
 
 # Base flags — always applied regardless of version
-BASE_CFLAGS = -Wall -Wextra -std=c11 -I include
+BASE_CFLAGS = -Wall -Wextra -std=gnu11 -I include
 
 # Per-version flags (add optimisation and OpenMP as needed)
 ifeq ($(VERSION),v1_baseline)

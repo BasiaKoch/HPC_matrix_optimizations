@@ -6,7 +6,7 @@
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=1
 #SBATCH --exclusive
-#SBATCH --time=02:00:00
+#SBATCH --time=01:00:00
 #SBATCH --qos=INTR
 #SBATCH --output=csd3_serial_%j.out
 #SBATCH --error=csd3_serial_%j.err

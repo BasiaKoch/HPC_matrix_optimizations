@@ -1,0 +1,47 @@
+gcc (Spack GCC) 11.2.0
+Copyright (C) 2021 Free Software Foundation, Inc.
+This is free software; see the source for copying conditions.  There is NO
+warranty; not even for MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+
+>>> Building v1_baseline ...
+rm -f src/*.o lib/libcholesky.a example/example test/test_correctness test/benchmark
+rm -rf lib/
+gcc -Wall -Wextra -std=gnu11 -I include -O0 -g -c src/cholesky_v1_baseline.c -o src/cholesky_v1_baseline.o
+mkdir -p lib
+ar rcs lib/libcholesky.a src/cholesky_v1_baseline.o
+gcc -Wall -Wextra -std=gnu11 -I include -O0 -g test/benchmark.c -Llib -lcholesky -lm -o test/benchmark
+>>> Running v1_baseline  SIZES=500 1000 2000  REPS=3
+    v1_baseline n=500 ...
+    v1_baseline n=1000 ...
+    v1_baseline n=2000 ...
+>>> Building v2_serial_opt ...
+rm -f src/*.o lib/libcholesky.a example/example test/test_correctness test/benchmark
+rm -rf lib/
+gcc -Wall -Wextra -std=gnu11 -I include -O3 -march=native -ffast-math -c src/cholesky_v2_serial_opt.c -o src/cholesky_v2_serial_opt.o
+mkdir -p lib
+ar rcs lib/libcholesky.a src/cholesky_v2_serial_opt.o
+gcc -Wall -Wextra -std=gnu11 -I include -O3 -march=native -ffast-math test/benchmark.c -Llib -lcholesky -lm -o test/benchmark
+>>> Running v2_serial_opt  SIZES=500 1000 2000  REPS=3
+    v2_serial_opt n=500 ...
+    v2_serial_opt n=1000 ...
+    v2_serial_opt n=2000 ...
+Done. Results in results/csd3_serial.csv
+version,n,threads,rep,time_s,gflops
+v1_baseline,500,1,1,0.168852,0.2468
+v1_baseline,500,1,2,0.168696,0.2470
+v1_baseline,500,1,3,0.168711,0.2470
+v1_baseline,1000,1,1,1.292568,0.2579
+v1_baseline,1000,1,2,1.291561,0.2581
+v1_baseline,1000,1,3,1.291635,0.2581
+v1_baseline,2000,1,1,10.391699,0.2566
+v1_baseline,2000,1,2,10.389738,0.2567
+v1_baseline,2000,1,3,10.386360,0.2567
+v2_serial_opt,500,1,1,0.010718,3.8875
+v2_serial_opt,500,1,2,0.010719,3.8873
+v2_serial_opt,500,1,3,0.010680,3.9014
+v2_serial_opt,1000,1,1,0.108697,3.0666
+v2_serial_opt,1000,1,2,0.108579,3.0700
+v2_serial_opt,1000,1,3,0.108541,3.0710
+v2_serial_opt,2000,1,1,0.858397,3.1066
+v2_serial_opt,2000,1,2,0.851724,3.1309
+v2_serial_opt,2000,1,3,0.851716,3.1309

@@ -1,0 +1,4 @@
+/tmp/ccMKlbCA.o: In function `main':
+benchmark.c:(.text.startup+0x53f): undefined reference to `mphil_dis_cholesky'
+collect2: error: ld returned 1 exit status
+make: *** [Makefile:79: test/benchmark] Błąd 1

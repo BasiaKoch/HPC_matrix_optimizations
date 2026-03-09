@@ -5,13 +5,6 @@ test/benchmark
 test/test_correctness
 example/example
 
-# logs/results
-results/*.out
-results/*.err
-results/*.csv
-csd3_serial_*.out
-csd3_serial_*.err
-
 # macOS
 .DS_Store# Build artefacts
 lib/

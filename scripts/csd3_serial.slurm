@@ -15,8 +15,16 @@
 # Platform: CSD3 icelake
 # Threads: 1 (OMP_NUM_THREADS=1 so any OpenMP version also runs single-threaded)
 
-# Always run from project root, regardless of where sbatch was called from
-cd "$(dirname "$0")/.."
+# Always run from project root (where Makefile lives)
+if [ -f "$SLURM_SUBMIT_DIR/Makefile" ]; then
+    cd "$SLURM_SUBMIT_DIR"
+elif [ -f "$SLURM_SUBMIT_DIR/../Makefile" ]; then
+    cd "$SLURM_SUBMIT_DIR/.."
+else
+    echo "ERROR: cannot find project root from SLURM_SUBMIT_DIR=$SLURM_SUBMIT_DIR" >&2
+    exit 1
+fi
+echo "Working directory: $(pwd)"
 
 module purge
 module load gcc/11

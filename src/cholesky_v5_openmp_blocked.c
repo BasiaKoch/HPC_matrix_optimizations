@@ -13,11 +13,13 @@
 /*
  * v5_openmp_blocked: panel-blocked Cholesky with OpenMP.
  *
- * Why the column-by-column approach (v3_openmp) failed to scale
- * ─────────────────────────────────────────────────────────────
+ * Why the column-by-column approach (v3_openmp) scales poorly for large n
+ * ────────────────────────────────────────────────────────────────────────
  * v3_openmp synchronises after every Cholesky step p → O(n) barriers.
- * For n=2000 with 76 threads, ~4000 barriers × ~500 µs each ≈ 2 s of pure
- * synchronisation overhead, drowning out the ~10 ms of useful parallel work.
+ * For n=8000 at 76 threads (measured on CSD3 icelake) this limits speedup
+ * to ~8× despite 76 cores, because each barrier stalls all threads waiting
+ * for the single-threaded diagonal/normalisation work to finish.  For small
+ * n (≤ 4000) scaling is reasonable; for large n it saturates quickly.
  *
  * Panel-blocked algorithm (right-looking, inspired by LAPACK dpotrf)
  * ──────────────────────────────────────────────────────────────────
@@ -36,8 +38,8 @@
  * 76 threads busy and amortise barrier cost.
  *
  * Data layout (same as v3_openmp):
- *   lower triangle (i ≥ j): c[i*n+j] = L[i,j]  ← used by test/report
- *   upper triangle (i < j): scratch space, not part of output
+ *   lower triangle (i ≥ j): c[i*n+j] = L[i,j]
+ *   upper triangle (i < j): c[i*n+j] = L^T[i,j] = L[j,i]  (filled at end)
  */
 
 double mphil_dis_cholesky(double *c, int n)

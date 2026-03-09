@@ -23,7 +23,7 @@ gcc --version
 
 mkdir -p results
 
-VERSIONS="v1_baseline v2_serial_opt v3_openmp"
+VERSIONS="v1_baseline v2_serial_opt"  # v3_openmp added once implemented
 REPS=3
 
 export OMP_NUM_THREADS=1

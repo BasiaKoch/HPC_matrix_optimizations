@@ -20,4 +20,3 @@ test/test_correctness
 *.swo
 *~
 .vscode/
-*.csv

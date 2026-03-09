@@ -15,6 +15,9 @@
 # Platform: CSD3 icelake
 # Threads: 1 (OMP_NUM_THREADS=1 so any OpenMP version also runs single-threaded)
 
+# Always run from project root, regardless of where sbatch was called from
+cd "$(dirname "$0")/.."
+
 module purge
 module load gcc/11
 

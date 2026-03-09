@@ -45,7 +45,7 @@ for VERSION in v3_openmp; do
     make bench VERSION=$VERSION
     if [ ! -f ./test/benchmark ]; then echo "ERROR: build failed for $VERSION" >&2; exit 1; fi
 
-    for n in 2000 4000; do
+    for n in 2000 4000 6000 8000; do
         for threads in 1 2 4 8 16 32 48 64 76; do
             export OMP_NUM_THREADS=$threads
             ./test/benchmark $n $REPS | sed "s/^/${VERSION},/" >> results/csd3_scaling.csv
@@ -58,7 +58,7 @@ done
 make clean
 make bench VERSION=v5_openmp_blocked NB=128
 if [ ! -f ./test/benchmark ]; then echo "ERROR: build failed for v5_openmp_blocked" >&2; exit 1; fi
-for n in 2000 4000; do
+for n in 2000 4000 6000 8000; do
     for threads in 1 2 4 8 16 32 48 64 76; do
         export OMP_NUM_THREADS=$threads
         ./test/benchmark $n $REPS | sed "s/^/v5_blocked_NB128,/" >> results/csd3_scaling.csv

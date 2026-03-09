@@ -60,7 +60,7 @@ for VERSION in v2_serial_opt v3_serial_opt; do
     make clean
     make bench VERSION=$VERSION
     if [ ! -f ./test/benchmark ]; then echo "ERROR: failed to build $VERSION, skipping"; continue; fi
-    SIZES="500 1000 2000 4000"
+    SIZES="500 1000 2000 4000 6000"
     echo ">>> Running $VERSION  SIZES=$SIZES  REPS=$REPS"
     for n in $SIZES; do
         echo "    $VERSION n=$n ..."
@@ -68,20 +68,6 @@ for VERSION in v2_serial_opt v3_serial_opt; do
     done
 done
 
-# v4_serial_blocked: sweep block sizes to find best BS for this platform
-for BS in 16 32 64 128; do
-    VERSION=v4_serial_blocked
-    echo ">>> Building $VERSION BS=$BS ..."
-    make clean
-    make bench VERSION=$VERSION BS=$BS
-    if [ ! -f ./test/benchmark ]; then echo "ERROR: failed to build $VERSION BS=$BS, skipping"; continue; fi
-    SIZES="500 1000 2000 4000"
-    echo ">>> Running ${VERSION}_BS${BS}  SIZES=$SIZES  REPS=$REPS"
-    for n in $SIZES; do
-        echo "    ${VERSION}_BS${BS} n=$n ..."
-        ./test/benchmark $n $REPS | sed "s/^/v4_blocked_BS${BS},/" >> results/csd3_serial.csv
-    done
-done
 
 echo "Done. Results in results/csd3_serial.csv"
 cat results/csd3_serial.csv

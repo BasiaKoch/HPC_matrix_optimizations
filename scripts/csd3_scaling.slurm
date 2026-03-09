@@ -13,7 +13,7 @@
 
 # Strong scaling study: fix n, vary thread count 1–76
 # Platform: CSD3 icelake (76 cores/node)
-# Versions: v3_openmp (barrier-based) and v4_tuned (task-DAG)
+# Versions: v3_openmp (barrier-based), v4_tuned (task-DAG), v5_openmp_blocked (panel-blocked)
 
 # Always run from project root (where Makefile lives)
 if [ -f "$SLURM_SUBMIT_DIR/Makefile" ]; then
@@ -50,6 +50,18 @@ for VERSION in v3_openmp v4_tuned; do
             export OMP_NUM_THREADS=$threads
             ./test/benchmark $n $REPS | sed "s/^/${VERSION},/" >> results/csd3_scaling.csv
         done
+    done
+done
+
+# v5_openmp_blocked: panel-blocked with default panel width NB=128
+# Use tag "v5_blocked_NB128" in CSV so plots can distinguish panel widths
+make clean
+make bench VERSION=v5_openmp_blocked NB=128
+if [ ! -f ./test/benchmark ]; then echo "ERROR: build failed for v5_openmp_blocked" >&2; exit 1; fi
+for n in 2000 4000; do
+    for threads in 1 2 4 8 16 32 48 64 76; do
+        export OMP_NUM_THREADS=$threads
+        ./test/benchmark $n $REPS | sed "s/^/v5_blocked_NB128,/" >> results/csd3_scaling.csv
     done
 done
 

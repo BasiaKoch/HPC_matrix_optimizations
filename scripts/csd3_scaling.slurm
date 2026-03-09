@@ -8,13 +8,22 @@
 #SBATCH --exclusive
 #SBATCH --time=02:00:00
 #SBATCH --qos=INTR
-#SBATCH --output=results/csd3_scaling_%j.out
-#SBATCH --error=results/csd3_scaling_%j.err
+#SBATCH --output=csd3_scaling_%j.out
+#SBATCH --error=csd3_scaling_%j.err
 
 # Strong scaling study: fix n, vary thread count 1–76
-# Experiments 2 & 3 from BENCHMARKING_PLAN.md
 # Platform: CSD3 icelake (76 cores/node)
-# Version: v3_openmp (change VERSION= for other versions)
+# Version: v3_openmp
+
+# Always run from project root (where Makefile lives)
+if [ -f "$SLURM_SUBMIT_DIR/Makefile" ]; then
+    cd "$SLURM_SUBMIT_DIR"
+elif [ -f "$SLURM_SUBMIT_DIR/../Makefile" ]; then
+    cd "$SLURM_SUBMIT_DIR/.."
+else
+    echo "ERROR: cannot find project root" >&2; exit 1
+fi
+echo "Working directory: $(pwd)"
 
 module purge
 module load gcc/11
@@ -28,7 +37,8 @@ REPS=3
 export OMP_PROC_BIND=close
 export OMP_PLACES=cores
 
-make bench VERSION=$VERSION -s
+make bench VERSION=$VERSION
+if [ ! -f ./test/benchmark ]; then echo "ERROR: build failed" >&2; exit 1; fi
 
 echo "version,n,threads,rep,time_s,gflops" > results/csd3_scaling.csv
 

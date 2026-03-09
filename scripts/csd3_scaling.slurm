@@ -6,7 +6,7 @@
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=76
 #SBATCH --exclusive
-#SBATCH --time=02:00:00
+#SBATCH --time=01:00:00
 #SBATCH --qos=INTR
 #SBATCH --output=csd3_scaling_%j.out
 #SBATCH --error=csd3_scaling_%j.err
@@ -42,8 +42,9 @@ if [ ! -f ./test/benchmark ]; then echo "ERROR: build failed" >&2; exit 1; fi
 
 echo "version,n,threads,rep,time_s,gflops" > results/csd3_scaling.csv
 
-# Experiment 2: strong scaling — fix n, vary threads
-for n in 2000 4000 8000 12000; do
+# Strong scaling: n=2000 fits in L3 (compute-bound), n=4000 exceeds L3 (bandwidth-bound)
+# n=8000+ excluded: single-threaded run alone would exceed 1-hour INTR limit
+for n in 2000 4000; do
     for threads in 1 2 4 8 16 32 48 64 76; do
         export OMP_NUM_THREADS=$threads
         ./test/benchmark $n $REPS | sed "s/^/${VERSION},/" >> results/csd3_scaling.csv

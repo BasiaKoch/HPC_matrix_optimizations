@@ -1,3 +1,17 @@
+Working directory: /home/bk489/C2/C2_Coursework
+rm -f src/*.o lib/libcholesky.a example/example test/test_correctness test/benchmark
+rm -rf lib/
+gcc -Wall -Wextra -std=gnu11 -I include -O3 -march=native -ffast-math -fopenmp -c src/cholesky_v3_openmp.c -o src/cholesky_v3_openmp.o
+mkdir -p lib
+ar rcs lib/libcholesky.a src/cholesky_v3_openmp.o
+gcc -Wall -Wextra -std=gnu11 -I include -O3 -march=native -ffast-math -fopenmp test/benchmark.c -Llib -lcholesky -lm -o test/benchmark
+rm -f src/*.o lib/libcholesky.a example/example test/test_correctness test/benchmark
+rm -rf lib/
+gcc -Wall -Wextra -std=gnu11 -I include -O3 -march=native -ffast-math -fopenmp -DBLOCK_NB=128 -c src/cholesky_v5_openmp_blocked.c -o src/cholesky_v5_openmp_blocked.o
+mkdir -p lib
+ar rcs lib/libcholesky.a src/cholesky_v5_openmp_blocked.o
+gcc -Wall -Wextra -std=gnu11 -I include -O3 -march=native -ffast-math -fopenmp -DBLOCK_NB=128 test/benchmark.c -Llib -lcholesky -lm -o test/benchmark
+Done. Results in results/csd3_scaling.csv
 version,n,threads,rep,time_s,gflops
 v3_openmp,2000,1,1,0.864100,3.0861
 v3_openmp,2000,1,2,0.845697,3.1532

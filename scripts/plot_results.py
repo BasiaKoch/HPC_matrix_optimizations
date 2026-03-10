@@ -6,13 +6,14 @@ Usage:
     python3 scripts/plot_results.py
 
 Outputs (saved to report/figures/):
-    fig1_serial_gflops.pdf       — Serial GFLOPS comparison (v1, v2, v3)
-    fig2_scaling_gflops.pdf      — Strong scaling: GFLOPS vs threads
+    fig1_serial_gflops.pdf       — Serial GFLOPS comparison (v1, v2, v3_serial)
+    fig2_scaling_gflops.pdf      — Strong scaling: GFLOPS vs threads (v3, v5, v6)
     fig3_scaling_speedup.pdf     — Strong scaling: speedup vs threads
     fig4_scaling_efficiency.pdf  — Strong scaling: parallel efficiency vs threads
-    fig5_problem_size.pdf        — GFLOPS vs n at selected thread counts (v5)
-    fig6_v3_vs_v5_n8000.pdf      — v3 vs v5 head-to-head at n=8000
-    fig7_serial_time.pdf         — Wall-clock time vs n (serial versions)
+    fig5_problem_size.pdf        — GFLOPS vs n at selected thread counts (v6)
+    fig6_v3_vs_v5_n8000.pdf      — v3 vs v5 vs v6 head-to-head at n=8000
+    fig7_serial_time.pdf         — Wall-clock time vs n (serial versions, log-log)
+    fig9_incremental.pdf         — Incremental optimisation: GFLOPS per version at 1T
 """
 
 import os
@@ -183,7 +184,10 @@ def fig3():
         for v in vers:
             d = scaling_agg[(scaling_agg["version"] == v) &
                             (scaling_agg["n"] == n)].sort_values("threads")
-            t1 = float(d[d["threads"] == 1]["time_mean"].iloc[0])
+            d1 = d[d["threads"] == 1]
+            if d1.empty:   # version not benchmarked at this n (e.g. v3 at n=8000)
+                continue
+            t1 = float(d1["time_mean"].iloc[0])
             speedup = t1 / d["time_mean"].values
             threads = d["threads"].values
             ax.plot(threads, speedup, label=LABELS[v],
@@ -223,7 +227,10 @@ def fig4():
         for v in vers:
             d = scaling_agg[(scaling_agg["version"] == v) &
                             (scaling_agg["n"] == n)].sort_values("threads")
-            t1 = float(d[d["threads"] == 1]["time_mean"].iloc[0])
+            d1 = d[d["threads"] == 1]
+            if d1.empty:   # version not benchmarked at this n (e.g. v3 at n=8000)
+                continue
+            t1 = float(d1["time_mean"].iloc[0])
             eff = t1 / (d["time_mean"].values * d["threads"].values)
             ax.plot(d["threads"].values, eff,
                     label=LABELS[v], color=COLORS[v],
@@ -267,7 +274,7 @@ def fig5():
 
     ax.set_xlabel("Matrix dimension n")
     ax.set_ylabel("Performance (GFLOP/s)")
-    ax.set_title("Fig 5 — GFLOP/s vs problem size (v5 panel-blocked, NB= 96)\n"
+    ax.set_title("Fig 5 — GFLOP/s vs problem size (v6 panel-blocked + cache opts, NB=96)\n"
                  "(CSD3 icelake, 3 reps, error bars = ±1 SD)")
     ax.legend()
     fig.tight_layout()
@@ -287,14 +294,18 @@ def fig6():
     for v in vers:
         d = scaling_agg[(scaling_agg["version"] == v) &
                         (scaling_agg["n"] == n)].sort_values("threads")
+        if d.empty:
+            continue
         ax1.errorbar(d["threads"], d["gflops_mean"], yerr=d["gflops_std"],
                      label=LABELS[v], color=COLORS[v],
                      marker=MARKERS[v], linewidth=1.6)
-        t1  = float(d[d["threads"] == 1]["time_mean"].iloc[0])
-        eff = t1 / (d["time_mean"].values * d["threads"].values)
-        ax2.plot(d["threads"].values, eff,
-                 label=LABELS[v], color=COLORS[v],
-                 marker=MARKERS[v], linewidth=1.6)
+        d1 = d[d["threads"] == 1]
+        if not d1.empty:
+            t1  = float(d1["time_mean"].iloc[0])
+            eff = t1 / (d["time_mean"].values * d["threads"].values)
+            ax2.plot(d["threads"].values, eff,
+                     label=LABELS[v], color=COLORS[v],
+                     marker=MARKERS[v], linewidth=1.6)
 
     ax1.axhline(scaling_agg[(scaling_agg["version"] == "v6_blocked_NB96") &
                              (scaling_agg["n"] == n) &
@@ -365,6 +376,78 @@ def fig7():
     print(f"Saved {path}")
 
 # ==================================================================
+# Fig 9 — Incremental optimisation: GFLOPS per version at 1 thread
+# Combines serial CSV (v1, v2, v3_serial) with scaling CSV (v5, v6 at 1T).
+# Shows the performance gain from each individual optimisation step.
+# ==================================================================
+def fig9():
+    N_TARGET = 4000   # representative size: in serial CSV and scaling CSV
+
+    # --- serial versions from serial CSV ---
+    serial_vers = ["v1_baseline", "v2_serial_opt", "v3_serial_opt"]
+    rows = []
+    for v in serial_vers:
+        d = serial_agg[(serial_agg["version"] == v) & (serial_agg["n"] == N_TARGET)]
+        if len(d):
+            rows.append({
+                "label": LABELS[v],
+                "mean":  float(d["gflops_mean"].iloc[0]),
+                "std":   float(d["gflops_std"].iloc[0]),
+                "color": COLORS[v],
+            })
+
+    # --- parallel versions at 1 thread from scaling CSV ---
+    for v, label_override in [
+        ("v5_blocked_NB96",  "v5 blocked 1T\n(NB=96)"),
+        ("v6_blocked_NB96",  "v6 cache opts 1T\n(NB=96)"),
+    ]:
+        d = scaling_agg[(scaling_agg["version"] == v) &
+                        (scaling_agg["n"] == N_TARGET) &
+                        (scaling_agg["threads"] == 1)]
+        if len(d):
+            rows.append({
+                "label": label_override,
+                "mean":  float(d["gflops_mean"].iloc[0]),
+                "std":   float(d["gflops_std"].iloc[0]),
+                "color": COLORS[v],
+            })
+
+    if not rows:
+        print("fig9: no data found, skipping")
+        return
+
+    labels = [r["label"] for r in rows]
+    means  = [r["mean"]  for r in rows]
+    stds   = [r["std"]   for r in rows]
+    colors = [r["color"] for r in rows]
+    x      = np.arange(len(rows))
+
+    fig, ax = plt.subplots(figsize=(7.5, 4.2))
+    bars = ax.bar(x, means, color=colors, yerr=stds,
+                  capsize=4, error_kw={"elinewidth": 1.2}, zorder=3)
+
+    # Annotate each bar with its value
+    for bar, m in zip(bars, means):
+        ax.text(bar.get_x() + bar.get_width() / 2, bar.get_height() + 0.15,
+                f"{m:.1f}", ha="center", va="bottom", fontsize=8)
+
+    ax.set_xticks(x)
+    ax.set_xticklabels(labels, fontsize=9)
+    ax.set_ylabel("Performance (GFLOP/s)")
+    ax.set_title(
+        f"Fig 9 — Incremental optimisation: single-thread GFLOP/s at n={N_TARGET}\n"
+        f"(CSD3 icelake, 1 thread, 3 reps, error bars = ±1 SD)"
+    )
+    ax.grid(True, axis="y", alpha=0.35, linestyle="--", zorder=0)
+    ax.set_axisbelow(True)
+    fig.tight_layout()
+    path = os.path.join(FIG_DIR, "fig9_incremental.pdf")
+    fig.savefig(path)
+    plt.close(fig)
+    print(f"Saved {path}")
+
+
+# ==================================================================
 # Main
 # ==================================================================
 if __name__ == "__main__":
@@ -378,4 +461,5 @@ if __name__ == "__main__":
     fig5()
     fig6()
     fig7()
+    fig9()
     print("\nAll figures generated successfully.")

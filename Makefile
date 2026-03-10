@@ -20,7 +20,7 @@
 # To add a new version: create src/cholesky_<name>.c and add an ifeq block below.
 
 VERSION  ?= v1_baseline
-NB       ?= 128   # panel width for v5_*_blocked; override with NB=64 etc.
+NB       ?= 96    # panel width for v5_*_blocked; NB=96 is empirically optimal on CSD3 icelake
 
 # Base flags — always applied regardless of version
 BASE_CFLAGS = -Wall -Wextra -std=gnu11 -I include

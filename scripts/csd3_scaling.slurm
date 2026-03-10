@@ -53,15 +53,15 @@ for VERSION in v3_openmp; do
     done
 done
 
-# v5_openmp_blocked: panel-blocked with default panel width NB=128
-# Use tag "v5_blocked_NB128" in CSV so plots can distinguish panel widths
+# v5_openmp_blocked: panel-blocked with NB=96 (empirically optimal on icelake from block-size sweep)
+# Use tag "v5_blocked_NB96" in CSV so plots can distinguish panel widths
 make clean
-make bench VERSION=v5_openmp_blocked NB=128
+make bench VERSION=v5_openmp_blocked NB=96
 if [ ! -f ./test/benchmark ]; then echo "ERROR: build failed for v5_openmp_blocked" >&2; exit 1; fi
 for n in 2000 4000 6000 8000; do
     for threads in 1 2 4 8 16 32 48 64 76; do
         export OMP_NUM_THREADS=$threads
-        ./test/benchmark $n $REPS | sed "s/^/v5_blocked_NB128,/" >> results/csd3_scaling.csv
+        ./test/benchmark $n $REPS | sed "s/^/v5_blocked_NB96,/" >> results/csd3_scaling.csv
     done
 done
 

@@ -3,9 +3,15 @@
 **Platform**: CSD3 icelake partition (76-core Intel Xeon Platinum 8276 @ 2.2 GHz)
 **Compiler**: GCC 11, flags: `-O3 -march=native -ffast-math -fopenmp`
 **Serial baseline flags**: v1 uses `-O0`; v2/v3 use `-O3 -march=native -ffast-math`
-**Block size (v5)**: NB = 128
+**Block size (v5)**: NB = 96 (empirically optimal — see Section 11 and Fig 8)
 **OMP settings**: `OMP_PROC_BIND=close`, `OMP_PLACES=cores`
 **Reps**: 3 per configuration; statistics = mean ± 1 SD
+
+> **NOTE — DATA REFRESH IN PROGRESS**
+> Sections 3–5 (Tables 3–4, scaling numbers) are from the *old* run:
+> pre-correctness-fix code, NB=128. They will be replaced once the scaling
+> re-run with the corrected code + NB=96 completes.
+> Section 11 and the block-sweep results ARE from the corrected code.
 
 ---
 
@@ -226,26 +232,33 @@ a fundamental tradeoff between two competing costs:
   TRSM both read the panel repeatedly; if it is evicted between accesses, performance
   drops due to L2/L3 cache misses.
 
-The L1 cache on CSD3 icelake is 48 KB per core. A single row of width NB=128 occupies
-128 × 8 = 1 KB, so at most ~48 rows of a 128-wide panel fit simultaneously in L1. At
-NB=256 the row is 2 KB, halving the number of in-flight rows and increasing L2 pressure.
-For Phase 3 (SYRK), the relevant footprint per thread is two rows of the panel
-(panel_i and panel_j, each NB doubles) plus a partial dot product accumulator — again
-well within L1 for NB ≤ 128.
+### Block-sweep results (corrected code, CSD3 icelake, n=8000, 76 threads)
+
+| NB  | Mean GFLOP/s | Note          |
+|-----|-------------|---------------|
+|  64 | 145.5       |               |
+|  96 | 149.5       | **BEST**      |
+| 128 | 137.8       |               |
+| 192 | 133.6       |               |
+| 256 | 121.7       |               |
+
+The L1 data cache on CSD3 icelake is 48 KB per core. A panel row of NB=96 occupies
+96 × 8 = 768 B; NB=128 occupies 1 KB. Both fit in L1. The performance drop from NB=128
+relative to NB=96 is consistent with increased L2 bank-conflict pressure and reduced
+prefetch effectiveness as the stride-n column accesses in Phase 1's within-panel update
+span more cache sets at NB=128 than at NB=96. Larger panels (NB≥192) additionally
+cause L2 eviction during Phase 2 TRSM, producing the monotonic decline seen above.
 
 ### Report Paragraph (copy/paste ready)
 
 The panel width NB was tuned empirically by compiling `v5_openmp_blocked` with
 `-DBLOCK_NB=N` for N ∈ {64, 96, 128, 192, 256} and measuring GFLOP/s at n=8000,
-76 threads (3 reps each) on CSD3 icelake (Fig. 8). Performance peaks at NB=128,
-which corresponds to a panel row of 128 × 8 = 1 KB — small enough to reside in
-each core's 48 KB L1 cache throughout the serial Phase 1 factorisation and the
-parallel Phase 2 TRSM. Smaller panels (NB=64) pay a higher per-barrier cost: with
-⌈8000/64⌉ = 125 panels, three barriers per panel gives 375 global synchronisations
-versus only 188 at NB=128. Larger panels (NB≥192) cause L1 eviction of the panel
-rows during repeated access in Phase 1, increasing cache-miss penalty and reducing
-GFLOP/s. The result confirms NB=128 as the near-optimal choice for the icelake
-micro-architecture and motivates its use as the default in all parallel benchmarks.
+76 threads (3 reps each) on CSD3 icelake (Fig. 8). Performance peaks at NB=96
+(149.5 GFLOP/s), corresponding to a panel row of 96 × 8 = 768 B. Smaller panels
+(NB=64) pay a higher synchronisation cost: ⌈8000/64⌉ = 125 panels gives 375 barriers
+versus 250 at NB=96. Larger panels (NB=128–256) degrade progressively, consistent
+with increased pressure on the L1/L2 cache hierarchy from the stride-n column accesses
+in Phase 1. NB=96 is therefore used as the default in all parallel benchmarks.
 
 ### How to run the sweep on CSD3
 

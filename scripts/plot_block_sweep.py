@@ -58,9 +58,9 @@ ax.set_title(
 )
 ax.set_xticks(agg["BLOCK_NB"].tolist())
 
-# Annotate L1 cache capacity: 128 doubles = 1 KB, L1 = 32 KB → 4 rows of 128
-ax.text(128, ax.get_ylim()[0], "  L1-fit\n  (128×8=1KB)", fontsize=7,
-        color="gray", va="bottom")
+# Annotate cache footprint at key sizes
+ax.text(96,  ax.get_ylim()[0], "  96×8=768B", fontsize=7, color="gray", va="bottom")
+ax.text(128, ax.get_ylim()[0], "  128×8=1KB", fontsize=7, color="gray", va="bottom")
 
 ax.legend(fontsize=9)
 ax.grid(True, alpha=0.35, linestyle="--")

@@ -31,10 +31,8 @@ export OMP_NUM_THREADS=$THREADS
 # -----------------------------------------------------------------------
 mkdir -p results
 
-# Write CSV header (only if file does not exist yet)
-if [ ! -f "$OUT" ]; then
-    echo "BLOCK_NB,n,threads,rep,time_s,gflops" > "$OUT"
-fi
+# Always write a fresh header — overwrites any stale/incorrect previous run
+echo "BLOCK_NB,n,threads,rep,time_s,gflops" > "$OUT"
 
 echo "Block-size sweep: n=$N, threads=$THREADS, reps=$REPS"
 echo "Panel widths: $BLOCK_SIZES"
@@ -43,6 +41,10 @@ echo ""
 
 for NB in $BLOCK_SIZES; do
     echo "--- Building v5_openmp_blocked with BLOCK_NB=$NB ---"
+    # Force a clean rebuild for every NB: Make tracks source-file timestamps,
+    # not compiler flags, so without 'make clean' it reuses the previous binary
+    # and all iterations silently run the same BLOCK_NB value.
+    make clean
     make bench VERSION=v5_openmp_blocked NB=$NB
 
     if [ ! -f ./test/benchmark ]; then

@@ -19,14 +19,14 @@ module load gcc/11
 ## Build
 
 ```bash
-# Build the best (panel-blocked OpenMP) version — recommended for performance
-make bench VERSION=v5_openmp_blocked NB=128
+# Build the best (panel-blocked OpenMP + micro-opts) version — recommended for performance
+make bench VERSION=v6_openmp_blocked NB=96
 
 # Build and run correctness tests
-make test VERSION=v5_openmp_blocked NB=128
+make test VERSION=v6_openmp_blocked NB=96
 
 # Build the example program
-make example VERSION=v5_openmp_blocked NB=128
+make example VERSION=v6_openmp_blocked NB=96
 
 # Build any other version
 make bench VERSION=v3_openmp
@@ -69,7 +69,7 @@ See `example/example.c` for a complete usage example.
 
 ## Performance Guidance
 
-For best performance use `v5_openmp_blocked` with the following environment
+For best performance use `v6_openmp_blocked` with the following environment
 variables (set automatically by the provided SLURM scripts):
 
 ```bash
@@ -79,18 +79,18 @@ export OMP_PLACES=cores          # one thread per core (no SMT)
 ./example/example 8000
 ```
 
-The panel width `NB=128` is near-optimal for icelake L1/L2 cache sizes
-(128 doubles = 1 KB, fits in L1). Larger matrices benefit from the same
-setting; smaller matrices (n < 500) are memory-bound at any thread count.
+The panel width `NB=96` is empirically optimal on CSD3 icelake (96 doubles ≈
+768 B; the packed NB×NB block is ~74 KB, fitting in the 2 MB L2 per core).
+Smaller matrices (n < 500) are memory-bound at any thread count.
 
-Measured peak performance on CSD3 icelake (76 threads, `v5_openmp_blocked`):
+Measured peak performance on CSD3 icelake (76 threads, `v6_openmp_blocked`, NB=96):
 
 | n    | GFlop/s | Speedup vs 1 thread |
 |------|---------|---------------------|
-| 2000 | 93      | 31×                 |
-| 4000 | 122     | 47×                 |
-| 6000 | 132     | 52×                 |
-| 8000 | 136     | 54×                 |
+| 2000 | 238     | 23×                 |
+| 4000 | 205     | 28×                 |
+| 6000 | 186     | 28×                 |
+| 8000 | 181     | 29×                 |
 
 ## Running Benchmarks on CSD3
 
@@ -111,14 +111,14 @@ not from inside `scripts/`.
 
 ```bash
 # Build first, then submit
-make example VERSION=v5_openmp_blocked NB=128
+make example VERSION=v6_openmp_blocked NB=96
 sbatch example/submit_csd3.slurm
 ```
 
 ## Testing
 
 ```bash
-make test VERSION=v5_openmp_blocked NB=128
+make test VERSION=v6_openmp_blocked NB=96
 ```
 
 Runs four test suites: 2×2 spec example, 3×3 hand-computed, `L Lᵀ`

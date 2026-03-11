@@ -22,11 +22,14 @@
 #   Fig. 6 same-size comparison only (all versions at n=8000):
 #     sbatch --export=ALL,STUDY=fig6 scripts/csd3_scaling.slurm
 #
+#   Fill missing v3 curve at n=6000 only (all thread counts):
+#     sbatch --export=ALL,STUDY=v3_n6000_curve scripts/csd3_scaling.slurm
+#
 #   Faster Fig. 6 smoke run:
 #     sbatch --export=ALL,STUDY=fig6,THREAD_LIST="1 8 32 76",REPS_V3=2,REPS_BLOCKED=2 scripts/csd3_scaling.slurm
 #
-#   Fig. 6 run + append results into main scaling CSV:
-#     sbatch --export=ALL,STUDY=fig6,MERGE_INTO_MAIN=1 scripts/csd3_scaling.slurm
+#   Run a focused study and merge into main scaling CSV (replace overlap by version+n):
+#     sbatch --export=ALL,STUDY=v3_n6000_curve,MERGE_INTO_MAIN=1 scripts/csd3_scaling.slurm
 
 # Always run from project root (where Makefile lives)
 if [ -f "$SLURM_SUBMIT_DIR/Makefile" ]; then
@@ -46,16 +49,31 @@ mkdir -p results
 # -------------------------------------------------------------------
 # Configurable parameters (override via --export=ALL,...)
 # -------------------------------------------------------------------
-STUDY=${STUDY:-full}                     # full | fig6
+STUDY=${STUDY:-full}                     # full | fig6 | v3_n6000_curve
 REPS=${REPS:-3}                         # default reps
 REPS_V3=${REPS_V3:-$REPS}               # reps for v3_openmp
 REPS_BLOCKED=${REPS_BLOCKED:-$REPS}     # reps for v4/v5
 THREAD_LIST=${THREAD_LIST:-"1 2 4 8 16 32 48 64 76"}
 MERGE_INTO_MAIN=${MERGE_INTO_MAIN:-0}   # append OUT_CSV rows into results/csd3_scaling.csv
+REPLACE_OVERLAP=${REPLACE_OVERLAP:-1}   # when merging, replace rows with matching (version,n)
+
+# Per-version toggles (useful for targeted gap-fill runs)
+RUN_V3=${RUN_V3:-1}
+RUN_V4=${RUN_V4:-1}
+RUN_V5=${RUN_V5:-1}
 
 if [ "$STUDY" = "fig6" ]; then
     N_LIST_V3=${N_LIST_V3:-"8000"}
     N_LIST_BLOCKED=${N_LIST_BLOCKED:-"8000"}
+    RUN_V3=${RUN_V3:-1}
+    RUN_V4=${RUN_V4:-1}
+    RUN_V5=${RUN_V5:-1}
+elif [ "$STUDY" = "v3_n6000_curve" ]; then
+    N_LIST_V3=${N_LIST_V3:-"6000"}
+    N_LIST_BLOCKED=${N_LIST_BLOCKED:-""}
+    RUN_V3=1
+    RUN_V4=0
+    RUN_V5=0
 else
     N_LIST_V3=${N_LIST_V3:-"2000 4000 6000 8000"}
     N_LIST_BLOCKED=${N_LIST_BLOCKED:-"2000 4000 6000 8000"}
@@ -64,6 +82,8 @@ fi
 if [ -z "${OUT_CSV:-}" ]; then
     if [ "$STUDY" = "fig6" ]; then
         OUT_CSV="results/csd3_scaling_fig6.csv"
+    elif [ "$STUDY" = "v3_n6000_curve" ]; then
+        OUT_CSV="results/csd3_scaling_v3_n6000_curve.csv"
     else
         OUT_CSV="results/csd3_scaling.csv"
     fi
@@ -80,8 +100,12 @@ echo "Blocked sizes   : $N_LIST_BLOCKED"
 echo "Thread list     : $THREAD_LIST"
 echo "Reps (v3)       : $REPS_V3"
 echo "Reps (v4/v5)    : $REPS_BLOCKED"
+echo "Run v3          : $RUN_V3"
+echo "Run v4          : $RUN_V4"
+echo "Run v5          : $RUN_V5"
 echo "Output CSV      : $OUT_CSV"
 echo "Merge into main : $MERGE_INTO_MAIN"
+echo "Replace overlap : $REPLACE_OVERLAP"
 
 build_version() {
     local version="$1"
@@ -113,26 +137,48 @@ run_scaling_grid() {
     done
 }
 
-# v3_openmp: flat OpenMP baseline
-build_version "v3_openmp" ""
-run_scaling_grid "v3_openmp" "$N_LIST_V3" "$REPS_V3"
+if [ "$RUN_V3" = "1" ]; then
+    # v3_openmp: flat OpenMP baseline
+    build_version "v3_openmp" ""
+    run_scaling_grid "v3_openmp" "$N_LIST_V3" "$REPS_V3"
+fi
 
-# v4_openmp_blocked: panel-blocked baseline with NB=96
-build_version "v4_openmp_blocked" "96"
-run_scaling_grid "v4_blocked_NB96" "$N_LIST_BLOCKED" "$REPS_BLOCKED"
+if [ "$RUN_V4" = "1" ]; then
+    # v4_openmp_blocked: panel-blocked baseline with NB=96
+    build_version "v4_openmp_blocked" "96"
+    run_scaling_grid "v4_blocked_NB96" "$N_LIST_BLOCKED" "$REPS_BLOCKED"
+fi
 
-# v5_openmp_blocked: v4 + col-pack, L11 cache, j×4 unroll, schedule(static,1)
-build_version "v5_openmp_blocked" "96"
-run_scaling_grid "v5_blocked_NB96" "$N_LIST_BLOCKED" "$REPS_BLOCKED"
+if [ "$RUN_V5" = "1" ]; then
+    # v5_openmp_blocked: v4 + col-pack, L11 cache, j×4 unroll, schedule(static,1)
+    build_version "v5_openmp_blocked" "96"
+    run_scaling_grid "v5_blocked_NB96" "$N_LIST_BLOCKED" "$REPS_BLOCKED"
+fi
 
 echo "Done. Results in $OUT_CSV"
 cat "$OUT_CSV"
 
 if [ "$MERGE_INTO_MAIN" = "1" ] && [ "$OUT_CSV" != "results/csd3_scaling.csv" ]; then
-    if [ ! -f results/csd3_scaling.csv ]; then
-        cp "$OUT_CSV" results/csd3_scaling.csv
+    if [ "$REPLACE_OVERLAP" = "1" ]; then
+        if [ ! -f results/csd3_scaling.csv ]; then
+            cp "$OUT_CSV" results/csd3_scaling.csv
+        else
+            TMP_MERGE=$(mktemp)
+            # Keep existing rows that do NOT overlap (by version,n) with new rows.
+            awk -F, 'NR==FNR { if (FNR>1) keys[$1 FS $2]=1; next }
+                     FNR==1 { print; next }
+                     !($1 FS $2 in keys)' \
+                "$OUT_CSV" results/csd3_scaling.csv > "$TMP_MERGE"
+            # Append new rows (without header).
+            tail -n +2 "$OUT_CSV" >> "$TMP_MERGE"
+            mv "$TMP_MERGE" results/csd3_scaling.csv
+        fi
     else
-        tail -n +2 "$OUT_CSV" >> results/csd3_scaling.csv
+        if [ ! -f results/csd3_scaling.csv ]; then
+            cp "$OUT_CSV" results/csd3_scaling.csv
+        else
+            tail -n +2 "$OUT_CSV" >> results/csd3_scaling.csv
+        fi
     fi
-    echo "Merged into results/csd3_scaling.csv"
+    echo "Merged into results/csd3_scaling.csv (REPLACE_OVERLAP=$REPLACE_OVERLAP)"
 fi

@@ -157,7 +157,7 @@ def fig2():
     handles, labels = axes[0].get_legend_handles_labels()
     fig.legend(handles, labels, loc="upper left", bbox_to_anchor=(0.01, 0.99))
     fig.suptitle("Fig 2 — Strong scaling: GFLOP/s vs thread count\n"
-                 "(CSD3 icelake, v3_openmp vs v4_blocked_NB96 vs v5_blocked_NB96, 3 reps, error bars = ±1 SD)",
+                 "(CSD3 icelake, v3_openmp vs v4_blocked_NB96 vs v5_blocked_NB96, error bars = ±1 SD over available reps)",
                  y=1.02, fontsize=10)
     fig.tight_layout()
     path = os.path.join(FIG_DIR, "fig2_scaling_gflops.pdf")
@@ -273,7 +273,7 @@ def fig5():
     ax.set_xlabel("Matrix dimension n")
     ax.set_ylabel("Performance (GFLOP/s)")
     ax.set_title("Fig 5 — GFLOP/s vs problem size (v5 panel-blocked + cache opts, NB=96)\n"
-                 "(CSD3 icelake, 3 reps, error bars = ±1 SD)")
+                 "(CSD3 icelake, error bars = ±1 SD over available reps)")
     ax.legend()
     fig.tight_layout()
     path = os.path.join(FIG_DIR, "fig5_problem_size.pdf")
@@ -339,10 +339,10 @@ def fig6():
         ax2.text(0.03, 0.03, "v3_openmp not benchmarked at n=8000",
                  transform=ax2.transAxes, fontsize=8, color="#555555")
         fig.suptitle(f"Fig 6 — v4/v5 head-to-head at n={n}\n"
-                     "(v3 unavailable at this size; CSD3 icelake, 3 reps)", fontsize=10)
+                     "(v3 unavailable at this size; CSD3 icelake, mean ±1 SD over available reps)", fontsize=10)
     else:
         fig.suptitle(f"Fig 6 — v3 (flat parallel) vs v4/v5 (panel-blocked) at n={n}\n"
-                     "(CSD3 icelake, 3 reps)", fontsize=10)
+                     "(CSD3 icelake, mean ±1 SD over available reps)", fontsize=10)
     fig.tight_layout()
     path = os.path.join(FIG_DIR, "fig6_v3_v4_v5_n8000.pdf")
     fig.savefig(path)
@@ -446,7 +446,7 @@ def fig9():
     ax.set_ylabel("Performance (GFLOP/s)")
     ax.set_title(
         f"Fig 9 — Incremental optimisation: single-thread GFLOP/s at n={N_TARGET}\n"
-        f"(versions shown where n={N_TARGET} data exists; CSD3 icelake, 1 thread, 3 reps, error bars = ±1 SD)"
+        f"(versions shown where n={N_TARGET} data exists; CSD3 icelake, 1 thread, error bars = ±1 SD over available reps)"
     )
     ax.grid(True, axis="y", alpha=0.35, linestyle="--", zorder=0)
     ax.set_axisbelow(True)

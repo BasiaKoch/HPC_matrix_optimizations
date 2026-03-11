@@ -26,17 +26,17 @@ An in-place Cholesky factorization routine $C = LL^T$ is developed in C and
 optimized in five stages for a single 76-core CSD3 icelake node.
 Loop interchange and compiler flags (\texttt{-O3 -march=native -ffast-math})
 yield a 13--16$\times$ single-thread improvement over the \texttt{-O0} baseline.
-A flat OpenMP parallelization reaches at most 46.5~GFLOP/s at 48~threads for
+A flat OpenMP parallelization reaches at most 46.2~GFLOP/s at 48~threads for
 $n=2000$, then \emph{degrades}, consistent with synchronization overhead
 becoming dominant at high thread counts.
 Restructuring into a right-looking panel-blocked algorithm (panel width
 $\mathrm{NB}=96$) reduces barrier count from $n$ to $\lceil n/\mathrm{NB}\rceil$,
-giving 59.4$\times$ speedup and 78.2\% efficiency at 76~threads for $n=8000$
-(146.9~GFLOP/s).
+giving 59.5$\times$ speedup and 78.2\% efficiency at 76~threads for $n=8000$
+(147.2~GFLOP/s).
 Four additional optimizations---column packing, a private packed panel block,
 4-wide SYRK unrolling, and round-robin scheduling---improve single-thread
-performance by 2.53$\times$ relative to v4 at $n{=}8000$, and the final
-version reaches 181.2~GFLOP/s at 76~threads.
+performance by 2.52$\times$ relative to v4 at $n{=}8000$, and the final
+version reaches 182.7~GFLOP/s at 76~threads.
 \end{abstract}
 
 % ======================================================================
@@ -56,8 +56,8 @@ and its log-determinant is given by
 \end{equation}
 The routine is $O(n^3/3)$ and must be both correct and fast for large $n$.
 This report describes systematic optimization of a single-node OpenMP
-implementation on CSD3~icelake, with a best measured throughput of
-\textbf{181.2~GFLOP/s} at 76~threads for $n=8000$.
+implementation on CSD3~icelake, reaching \textbf{182.7~GFLOP/s} at 76~threads
+for the large-size case $n=8000$ (absolute peak 238.4~GFLOP/s at $n=2000$).
 
 % ======================================================================
 \section{Algorithm and Interface}
@@ -136,7 +136,7 @@ with an implicit barrier ensuring all threads see the updated values before the
 parallel update begins.
 \texttt{\#pragma~omp~simd} vectorizes the inner~$j$ loop.
 
-At $n=2000$, v3 peaks at 48~threads (46.5~GFLOP/s) and then \emph{degrades}
+At $n=2000$, v3 peaks at 48~threads (46.2~GFLOP/s) and then \emph{degrades}
 to 33.7~GFLOP/s at 76~threads (Figure~\ref{fig:scaling}).
 This behavior is consistent with synchronization overhead from the $O(n)=2000$
 barrier points becoming significant: as thread count grows, the parallel work
@@ -251,7 +251,10 @@ v3\_openmp, v4, v5 & \texttt{gcc -O3 -march=native -ffast-math -fopenmp -std=gnu
 Module: \texttt{gcc/11}.
 
 \paragraph{Methodology.}
-Each $(n, T, \text{version})$ configuration was run 3~times.
+Each $(n, T, \text{version})$ configuration was run at least 3~times.
+A dedicated follow-up run for Figure~\ref{fig:headtohead} was merged into
+\texttt{results/csd3\_scaling.csv}, so points at $n=8000$ for v4 and v5 have
+6~repetitions in the current dataset.
 The mean wall-clock time is reported with $\pm1$~SD error bars.
 All coefficients of variation are below 3.5\%, confirming reproducibility.
 Performance is expressed in GFLOP/s $= n^3/(3 \times t \times 10^9)$.
@@ -341,19 +344,18 @@ consistent with growing L1/L2 pressure from stride-$n$ column accesses.
 \subsection{Strong scaling}
 
 Figures~\ref{fig:scaling}--\ref{fig:efficiency} show GFLOP/s, speedup, and
-efficiency for v3\_openmp, v4, and v5 where data is available across
+efficiency for v3\_openmp, v4, and v5 across
 $n\in\{2000,4000,6000,8000\}$.
-For v3, only $n=2000$ and $n=4000$ include full thread sweeps; at $n=6000$
-only the single-thread point was collected, and $n=8000$ is unavailable.
-The single-thread runtimes at $n=6000$ ($\approx$43~s) and $n=8000$ ($\approx$107~s)
-would have exceeded
-the 1-hour INTR limit when multiplied over all 9 thread counts and 3~reps.
+For v3, $n=2000$, $n=4000$, and $n=8000$ include full thread sweeps; at
+$n=6000$ only the single-thread point was collected in an earlier batch.
+The single-thread runtime at $n=6000$ ($\approx$43~s) made the full sweep
+expensive under the 1-hour INTR limit when combined with all versions.
 
 \begin{figure}[h]
   \centering
   \includegraphics[width=\textwidth]{figures/fig2_scaling_gflops.pdf}
   \caption{Strong scaling: GFLOP/s vs.\ thread count.
-           CSD3 icelake, 3~reps, error bars $=\pm1$~SD.}
+           CSD3 icelake, error bars $=\pm1$~SD over available repetitions.}
   \label{fig:scaling}
 \end{figure}
 
@@ -362,7 +364,7 @@ the 1-hour INTR limit when multiplied over all 9 thread counts and 3~reps.
   \includegraphics[width=\textwidth]{figures/fig3_scaling_speedup.pdf}
   \caption{Strong scaling: speedup $T_1/T_p$ vs.\ threads (log-log axes).
            Dashed line: ideal linear speedup.
-           CSD3 icelake, 3~reps.}
+           CSD3 icelake, computed from mean runtimes over available repetitions.}
   \label{fig:speedup}
 \end{figure}
 
@@ -370,12 +372,12 @@ the 1-hour INTR limit when multiplied over all 9 thread counts and 3~reps.
   \centering
   \includegraphics[width=\textwidth]{figures/fig4_scaling_efficiency.pdf}
   \caption{Strong scaling: parallel efficiency $T_1/(p \cdot T_p)$ vs.\ threads.
-           CSD3 icelake, 3~reps.}
+           CSD3 icelake, computed from mean runtimes over available repetitions.}
   \label{fig:efficiency}
 \end{figure}
 
 \paragraph{v3 saturation and degradation.}
-At $n=2000$, v3 peaks at 46.5~GFLOP/s (48~threads) and degrades to
+At $n=2000$, v3 peaks at 46.2~GFLOP/s (48~threads) and degrades to
 33.7~GFLOP/s at 76~threads.
 Efficiency is only 14.2\% at 76~threads.
 The factorization performs $n=2000$ synchronisation points; the parallel work
@@ -383,14 +385,14 @@ per step ($\approx(n-p)^2/T$) likely falls below the barrier overhead
 at high $T$, consistent with the observed efficiency of 14.2\% at 76~threads.
 
 \paragraph{v4 near-linear scaling.}
-At $n=8000$, v4 achieves 59.4$\times$ speedup and 78.2\% efficiency at
-76~threads (146.9~GFLOP/s), with near-linear scaling to 32~threads.
+At $n=8000$, v4 achieves 59.5$\times$ speedup and 78.2\% efficiency at
+76~threads (147.2~GFLOP/s), with near-linear scaling to 32~threads.
 Each of the 83 parallel-work panels replaces approximately NB=96 individual
 column steps from v3, substantially reducing synchronisation frequency.
 
 \paragraph{v5 microarchitectural gain.}
-At $n=8000$, v5 achieves 181.2~GFLOP/s at 76~threads (+23\% over v4).
-Its single-thread performance is 2.53$\times$ higher than v4 (6.25 vs.\
+At $n=8000$, v5 achieves 182.7~GFLOP/s at 76~threads (+24\% over v4).
+Its single-thread performance is 2.52$\times$ higher than v4 (6.25 vs.\
 2.47~GFLOP/s), consistent with improved data locality and SIMD efficiency.
 The lower reported parallel efficiency of v5 (38\%) compared to v4 (78\%)
 should not be read as worse parallelism: v5 is faster than v4 at every tested
@@ -403,14 +405,17 @@ faster single-thread baseline reduces the ratio.
   \centering
   \includegraphics[width=\textwidth]{figures/fig6_v3_v4_v5_n8000.pdf}
   \caption{Head-to-head at $n=8000$: GFLOP/s (left) and parallel
-           efficiency (right) for v3, v4, and v5 where data is available in
-           \texttt{results/csd3\_scaling.csv}. CSD3 icelake, 3~reps.}
+           efficiency (right) for v3, v4, and v5 from
+           \texttt{results/csd3\_scaling.csv}. CSD3 icelake,
+           mean $\pm1$~SD over available repetitions.}
   \label{fig:headtohead}
 \end{figure}
 
-Figure~\ref{fig:headtohead} compares the three versions at fixed problem size
-$n=8000$ where available. This isolates algorithmic and implementation
-differences without conflating matrix-size effects.
+Figure~\ref{fig:headtohead} now compares all three versions at fixed problem
+size $n=8000$, isolating algorithmic and implementation differences without
+conflating matrix-size effects.
+At 76~threads, v3 reaches 12.9~GFLOP/s, v4 reaches 147.2~GFLOP/s, and v5
+reaches 182.7~GFLOP/s.
 
 \subsection{Problem-size scaling}
 
@@ -418,14 +423,14 @@ differences without conflating matrix-size effects.
   \centering
   \includegraphics[width=0.62\textwidth]{figures/fig5_problem_size.pdf}
   \caption{GFLOP/s vs.\ $n$ for v5 at selected thread counts.
-           CSD3 icelake, 3~reps, error bars $=\pm1$~SD.}
+           CSD3 icelake, error bars $=\pm1$~SD over available repetitions.}
   \label{fig:problemsize}
 \end{figure}
 
 Figure~\ref{fig:problemsize} shows that v5 throughput \emph{decreases} with $n$
 at all tested thread counts.
-At 76~threads, performance falls from 238.8~GFLOP/s at $n=2000$ to
-181.2~GFLOP/s at $n=8000$.
+At 76~threads, performance falls from 238.4~GFLOP/s at $n=2000$ to
+182.7~GFLOP/s at $n=8000$.
 This trend is consistent with increasing memory-system pressure: the $n=2000$
 matrix (32~MB) fits within a single socket's L3 (57~MB), whereas the $n=8000$
 matrix (512~MB) far exceeds the combined node L3 ($2\times57\approx114$~MB),
@@ -471,9 +476,9 @@ absolute runtime should be the primary measure.
 \paragraph{Memory-bound vs.\ compute-bound.}
 For small $n$ (2000), the matrix ($n^2 \times 8 = 32$~MB) fits within a
 single socket's L3 (57~MB) and the computation appears more compute-bound;
-v5 achieves 238.8~GFLOP/s at 76T.
+v5 achieves 238.4~GFLOP/s at 76T.
 For large $n$ (8000, 512~MB), the working set far exceeds the combined node
-L3 ($\approx$114~MB) and throughput falls to 181.2~GFLOP/s, consistent with
+L3 ($\approx$114~MB) and throughput falls to 182.7~GFLOP/s, consistent with
 a shift toward memory-system bottlenecks.
 The NB=96 packed panel block ($96 \times 96 \times 8 \approx 74$~KB) is
 designed to keep Phase~2 data in L2, but the full matrix cannot fit in cache
@@ -484,15 +489,15 @@ and memory bandwidth likely becomes a ceiling at large $n$.
 % ======================================================================
 
 Starting from a 0.26~GFLOP/s naive baseline, five development stages reach
-181~GFLOP/s at 76~threads for $n=8000$ on a single CSD3 icelake node,
+183~GFLOP/s at 76~threads for $n=8000$ on a single CSD3 icelake node,
 corresponding to an overall throughput increase of roughly 700$\times$
 relative to the naive baseline.
 Loop reorder and compiler flags contribute 13--16$\times$ on a single core.
 Panel blocking greatly reduces the synchronisation overhead seen in v3,
-achieving 59.4$\times$ speedup and 78.2\% parallel efficiency.
+achieving 59.5$\times$ speedup and 78.2\% parallel efficiency.
 Additional locality, SIMD, and scheduling optimisations (v5) improve
 single-thread throughput by 2.5$\times$ and parallel throughput by a further
-+23\% at full thread count.
++24\% at full thread count.
 For large matrices, performance appears increasingly limited by memory-system
 throughput rather than computation.
 

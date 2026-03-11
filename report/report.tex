@@ -35,7 +35,8 @@ giving 59.4$\times$ speedup and 78.2\% efficiency at 76~threads for $n=8000$
 (146.9~GFLOP/s).
 Four additional optimizations---column packing, a private packed panel block,
 4-wide SYRK unrolling, and round-robin scheduling---improve single-thread
-performance by 2.53$\times$ at $n{=}8000$, reaching 181.2~GFLOP/s at 76~threads.
+performance by 2.53$\times$ relative to v5 at $n{=}8000$, and the final
+version reaches 181.2~GFLOP/s at 76~threads.
 \end{abstract}
 
 % ======================================================================
@@ -139,7 +140,7 @@ At $n=2000$, v3 peaks at 48~threads (46.5~GFLOP/s) and then \emph{degrades}
 to 33.7~GFLOP/s at 76~threads (Figure~\ref{fig:scaling}).
 This behavior is consistent with synchronization overhead from the $O(n)=2000$
 barrier points becoming significant: as thread count grows, the parallel work
-per step ($\approx(n-p)^2/T$ FMAs) may fall below the cost of the barrier
+per step ($\approx(n-p)^2/T$) may fall below the cost of the barrier
 synchronisation, reducing utilization.
 At $n=4000$ the problem is large enough that v3 saturates at 65.7~GFLOP/s from
 64 to 76~threads (31.6$\times$ speedup, 41.6\% efficiency) without degrading,
@@ -253,6 +254,8 @@ Each $(n, T, \text{version})$ configuration was run 3~times.
 The mean wall-clock time is reported with $\pm1$~SD error bars.
 All coefficients of variation are below 3.5\%, confirming reproducibility.
 Performance is expressed in GFLOP/s $= n^3/(3 \times t \times 10^9)$.
+Timings measure the factorization routine only; matrix generation,
+initialization, and correctness checks are excluded.
 
 \paragraph{Git tags.}
 \begin{center}
@@ -380,8 +383,7 @@ column steps from v3, substantially reducing synchronisation frequency.
 \paragraph{v6 microarchitectural gain.}
 At $n=8000$, v6 achieves 181.2~GFLOP/s at 76~threads (+23\% over v5).
 Its single-thread performance is 2.53$\times$ higher than v5 (6.25 vs.\
-2.47~GFLOP/s), consistent with improved locality in Phase~2 (OPT-2) and
-better SIMD utilization in Phase~3 (OPT-3).
+2.47~GFLOP/s), consistent with improved data locality and SIMD efficiency.
 The lower reported parallel efficiency of v6 (38\%) compared to v5 (78\%)
 should not be read as worse parallelism: v6 is faster than v5 at every tested
 thread count, but efficiency is normalized by single-thread performance, so a
@@ -420,8 +422,8 @@ At 76~threads, performance falls from 238.8~GFLOP/s at $n=2000$ to
 181.2~GFLOP/s at $n=8000$.
 This trend is consistent with increasing memory-system pressure: the $n=2000$
 matrix (32~MB) lies near the 38~MB L3 boundary, whereas the $n=8000$ matrix
-(512~MB) exceeds it by more than an order of magnitude, suggesting a shift
-toward memory-bandwidth limitations at larger sizes.
+(512~MB) exceeds it by more than an order of magnitude, consistent with increasing memory-system pressure, including likely bandwidth
+limitations, at larger sizes.
 
 % ======================================================================
 \section{Discussion}
@@ -429,9 +431,11 @@ toward memory-bandwidth limitations at larger sizes.
 
 \paragraph{Amdahl analysis.}
 v3's limited scaling at $n=4000$, 76~threads ($31.6\times$, 41.6\% efficiency)
-likely reflects two effects: a serial work fraction that totals $O(n^2)$ across
-all steps vs.\ $O(n^3)$ for the parallel trailing update, and the overhead of
-$n=4000$ synchronisation points.
+likely reflects two effects: repeated serial sections in each iteration, and
+the overhead of $n=4000$ synchronisation points.
+Although the trailing update dominates the total flop count asymptotically,
+the per-step serial work and synchronisation overhead become increasingly
+visible at high thread counts.
 v5 largely alleviates both effects by reducing the serial work to $O(\mathrm{NB}^3)$
 per panel and the number of synchronisation points to 83.
 
@@ -471,8 +475,9 @@ and memory bandwidth likely becomes a ceiling at large $n$.
 % ======================================================================
 
 Starting from a 0.26~GFLOP/s naive baseline, five development stages reach
-181~GFLOP/s at 76~threads for $n=8000$ on a single CSD3 icelake node---a
-700$\times$ absolute improvement.
+181~GFLOP/s at 76~threads for $n=8000$ on a single CSD3 icelake node,
+corresponding to an overall throughput increase of roughly 700$\times$
+relative to the naive baseline.
 Loop reorder and compiler flags contribute 13--16$\times$ on a single core.
 Panel blocking greatly reduces the synchronisation overhead seen in v3,
 achieving 59.4$\times$ speedup and 78.2\% parallel efficiency.

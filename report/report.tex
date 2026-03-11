@@ -226,8 +226,9 @@ are unchanged.
 
 \paragraph{Platform.}
 All experiments ran on a single node of the CSD3 icelake partition
-(76-core Intel Xeon Platinum~8276 @ 2.2~GHz, L1=48~KB/core, L2=2~MB/core,
-L3=38~MB/socket).
+(Intel Xeon Platinum~8368Q @ 2.60~GHz, 2 sockets $\times$ 38 cores, 2 NUMA
+nodes, 76 cores total; L1d=48~KB/core, L2=1.25~MB/core, L3=57~MB/socket,
+verified from \texttt{lscpu}).
 Jobs were submitted via SLURM (\texttt{--exclusive}, INTR queue,
 \texttt{--time=01:00:00}).
 
@@ -421,8 +422,9 @@ at all tested thread counts.
 At 76~threads, performance falls from 238.8~GFLOP/s at $n=2000$ to
 181.2~GFLOP/s at $n=8000$.
 This trend is consistent with increasing memory-system pressure: the $n=2000$
-matrix (32~MB) lies near the 38~MB L3 boundary, whereas the $n=8000$ matrix
-(512~MB) exceeds it by more than an order of magnitude, consistent with increasing memory-system pressure, including likely bandwidth
+matrix (32~MB) fits within a single socket's L3 (57~MB), whereas the $n=8000$
+matrix (512~MB) far exceeds the combined node L3 ($2\times57\approx114$~MB),
+consistent with increasing memory-system pressure, including likely bandwidth
 limitations, at larger sizes.
 
 % ======================================================================
@@ -442,7 +444,7 @@ per panel and the number of synchronisation points to 83.
 \paragraph{Super-linear speedup.}
 v3 at $n=4000$ shows super-linear speedup at 2--8~threads (8.30$\times$ at
 8~threads).
-The full matrix (128~MB) exceeds the L3 cache (38~MB); as thread count grows,
+The full matrix (128~MB) exceeds the combined node L3 ($\approx$114~MB); as thread count grows,
 the per-thread working set decreases, which may improve cache reuse and reduce
 memory traffic relative to the single-thread case.
 This appears to be a cache-capacity effect rather than algorithmic
@@ -462,10 +464,12 @@ However, it may also reflect earlier saturation of shared bottlenecks, so
 absolute runtime should be the primary measure.
 
 \paragraph{Memory-bound vs.\ compute-bound.}
-For small $n$ (2000), the matrix ($n^2 \times 8 = 32$~MB) fits near L3 and the
-computation appears more compute-bound; v6 achieves 238.8~GFLOP/s at 76T.
-For large $n$ (8000, 512~MB), the working set far exceeds L3 and throughput
-falls to 181.2~GFLOP/s, consistent with a shift toward memory-system bottlenecks.
+For small $n$ (2000), the matrix ($n^2 \times 8 = 32$~MB) fits within a
+single socket's L3 (57~MB) and the computation appears more compute-bound;
+v6 achieves 238.8~GFLOP/s at 76T.
+For large $n$ (8000, 512~MB), the working set far exceeds the combined node
+L3 ($\approx$114~MB) and throughput falls to 181.2~GFLOP/s, consistent with
+a shift toward memory-system bottlenecks.
 The NB=96 packed panel block ($96 \times 96 \times 8 \approx 74$~KB) is
 designed to keep Phase~2 data in L2, but the full matrix cannot fit in cache
 and memory bandwidth likely becomes a ceiling at large $n$.

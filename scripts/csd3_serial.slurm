@@ -55,7 +55,7 @@ for VERSION in v1_baseline; do
 done
 
 # v2, v3, v4: -O3; extend to n=4000 to see cache effects
-for VERSION in v2_serial_opt v3_serial_opt; do
+for VERSION in v2_serial_opt ; do
     echo ">>> Building $VERSION ..."
     make clean
     make bench VERSION=$VERSION

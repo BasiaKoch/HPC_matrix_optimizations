@@ -2,7 +2,7 @@
 #include <math.h>
 #include <stdio.h>
 #include <time.h>
-#include <omp.h>   /* OpenMP runtime header: required for omp_get_num_threads() */
+#include <omp.h>   /* OpenMP header: required for the parallel/for/simd directives used below. */
 
 #define MAX_N 100000
 

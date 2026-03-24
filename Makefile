@@ -18,7 +18,7 @@
 # To add a new version: create src/cholesky_<name>.c and add an ifeq block below.
 
 VERSION  ?= v1_baseline
-NB       ?= 96    # panel width for v4/v5_openmp_blocked; NB=96 is empirically optimal on CSD3 icelake
+NB       ?= 96    # default panel width for v4/v5_openmp_blocked; best mean full-node choice on CSD3 icelake
 
 # Base flags — always applied regardless of version
 BASE_CFLAGS = -Wall -Wextra -std=gnu11 -I include
@@ -45,7 +45,7 @@ OPT_FLAGS ?= -O3 -march=native -ffast-math
 
 CFLAGS = $(BASE_CFLAGS) $(OPT_FLAGS)
 
-CC      = gcc
+CC      ?= gcc
 LDFLAGS = -lm
 
 LIB_SRC  = src/cholesky_$(VERSION).c
@@ -65,6 +65,7 @@ $(LIB_OBJ): $(LIB_SRC) include/mphil_dis_cholesky.h
 
 $(LIB_A): $(LIB_OBJ)
 	mkdir -p lib
+	rm -f $@
 	ar rcs $@ $<
 
 lib: $(LIB_A)

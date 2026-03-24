@@ -44,7 +44,7 @@ and links it with the test/example binaries.
 | Version | Description |
 |---------|-------------|
 | `v1_baseline` | Exact spec loop, `-O0`, no optimisation |
-| `v2_serial_opt` | Loop interchange, hoisting, reciprocal division, `-O3` |
+| `v2_serial_opt` | Loop interchange, loop-invariant hoisting (`c_ip`), `-O3 -march=native -ffast-math` |
 | `v3_openmp` | First OpenMP parallel version: `omp for schedule(static)` |
 | `v4_openmp_blocked` | Panel-blocked OpenMP — baseline blocked version (tune with `NB=N`) |
 | `v5_openmp_blocked` | Panel-blocked OpenMP + 4 cache/SIMD opts: col-pack, L11 cache, j×4 unroll, static,1 schedule |
@@ -68,8 +68,8 @@ See `example/example.c` for a complete usage example.
 
 ## Performance Guidance
 
-For best performance use `v5_openmp_blocked` with the following environment
-variables (set automatically by the provided SLURM scripts):
+For best full-node performance use `v5_openmp_blocked` with the following
+environment variables (set automatically by the provided SLURM scripts):
 
 ```bash
 export OMP_NUM_THREADS=76        # one thread per physical core
@@ -78,9 +78,12 @@ export OMP_PLACES=cores          # one thread per core (no SMT)
 ./example/example 8000
 ```
 
-The panel width `NB=96` is empirically optimal on CSD3 icelake (96 doubles ≈
-768 B; the packed NB×NB block is ~74 KB, fitting in the 1.25 MB L2 per core).
-Smaller matrices (n < 500) are memory-bound at any thread count.
+The block sweep shows that the best `NB` is thread-dependent:
+`NB=96` is best at 1 and 76 threads, while `NB=256` is best at 8 and 32 threads.
+`NB=96` is therefore kept as the default because it is the best mean full-node
+choice for the main 76-thread runs. A panel row of 96 doubles occupies 768 B,
+and the packed NB×NB block is about 74 KB, fitting comfortably in the 1.25 MB
+L2 per core. Smaller matrices (n < 500) are memory-bound at any thread count.
 
 Measured peak performance on CSD3 icelake (76 threads, `v5_openmp_blocked`, NB=96):
 
@@ -126,5 +129,6 @@ sbatch example/submit_csd3.slurm
 make test VERSION=v5_openmp_blocked NB=96
 ```
 
-Runs four test suites: 2×2 spec example, 3×3 hand-computed, `L Lᵀ`
-reconstruction at n=5/50/200, and bounds checking.
+Runs seven correctness checks: 2×2 spec example, 3×3 hand-computed example,
+`n=1`, bounds checking, `L Lᵀ` reconstruction, upper-triangle layout, and the
+log-determinant formula.

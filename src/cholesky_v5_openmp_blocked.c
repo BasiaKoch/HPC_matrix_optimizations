@@ -36,10 +36,10 @@
 #include <math.h>
 #include <stdio.h>
 #include <time.h>
-#include <omp.h>
+#include <omp.h>   /* OpenMP header: required for the parallel, single, for, and simd directives below. */
 
 #ifndef BLOCK_NB
-#define BLOCK_NB 96   /* empirically optimal on CSD3 icelake (block-size sweep) */
+#define BLOCK_NB 96   /* default panel width for the final kernel; best mean choice at 76 threads in the block sweep. */
 #endif
 
 #define MAX_N 100000

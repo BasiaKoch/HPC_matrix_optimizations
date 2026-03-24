@@ -118,9 +118,12 @@ Two changes are made, both single-threaded:
     Swapping to outer~$i$, inner~$j$ makes \texttt{c[i*n+j]} stride-1 in~$j$,
     improving spatial locality and making vectorization of the inner loop more
     likely under the chosen compiler flags.
-  \item \textbf{Reciprocal hoisting.}
-    \texttt{inv\_diag = 1.0/diag} is computed once per column $p$;
-    $O(n)$ divisions per step become $O(n)$ multiplications.
+  \item \textbf{Loop-invariant hoisting.}
+    \texttt{c\_ip = c[i*n+p]} is moved outside the $j$-loop; this value is
+    invariant in $j$, so hoisting avoids a reload on each inner-loop iteration.
+    The normalisation loops in v2 still use \texttt{/=~diag}; explicit reciprocal
+    precomputation (\texttt{inv\_diag = 1.0/diag}, replacing $O(n)$ divisions with
+    $O(n)$ multiplications per step) is introduced in v3.
 \end{enumerate}
 Compiled with \texttt{-O3 -march=native -ffast-math}, these changes give
 13--16$\times$ speedup over v1 for $n = 500$--$2000$ (Figure~\ref{fig:serial}).
@@ -135,6 +138,8 @@ team is created once and reused for all $n$ steps (\texttt{\#pragma~omp~parallel
 with an implicit barrier ensuring all threads see the updated values before the
 parallel update begins.
 \texttt{\#pragma~omp~simd} vectorizes the inner~$j$ loop.
+v3 also introduces \texttt{inv\_diag = 1.0/diag}, replacing the
+\texttt{/=~diag} divisions from v2 with multiplications in the normalisation loops.
 
 At $n=2000$, v3 peaks at 48~threads (46.2~GFLOP/s) and then \emph{degrades}
 to 33.7~GFLOP/s at 76~threads (Figure~\ref{fig:scaling}).
@@ -146,7 +151,7 @@ At $n=4000$ the problem is large enough that v3 saturates at 65.7~GFLOP/s from
 64 to 76~threads (31.6$\times$ speedup, 41.6\% efficiency) without degrading,
 but still far below linear.
 
-\subsection{v4\_openmp\_blocked --- Panel-blocked algorithm (tag \texttt{v0.4-blocked})}
+\subsection{v4\_openmp\_blocked --- Panel-blocked algorithm}
 
 Replacing the column-by-column outer loop with a panel-of-$\mathrm{NB}$-columns
 loop reduces synchronisation from $O(n)$ barriers to $O(n/\mathrm{NB})$.
@@ -190,10 +195,13 @@ full-thread optimum is broad. Because the main strong-scaling study uses a
 single fixed kernel configuration, NB$=96$ is retained as the default setting
 for the report.
 
-\subsection{v5\_openmp\_blocked --- Microarchitectural optimisation (tag \texttt{v0.6-cache-opts})}
+\subsection{v5\_openmp\_blocked --- Microarchitectural optimisation}
 
 Four targeted optimisations are added over v4; the algorithm and barrier count
-are unchanged.
+are unchanged. Their combined effect is measured directly in the benchmarks
+below; the individual OPT-1--OPT-4 mechanisms are motivated from the code
+structure and access patterns, but they are not isolated by separate one-factor
+ablation runs in this report.
 
 \begin{enumerate}
   \item \textbf{OPT-1: Column packing (Phase~1).}
@@ -223,8 +231,9 @@ are unchanged.
     Round-robin row assignment gives each thread an interleaved mix of heavy
     (large~$i$, many $j$-values) and light rows, giving better load balance
     than a contiguous assignment for the linearly-increasing triangular workload.
-    In these experiments \texttt{schedule(guided)} performed worse, consistent
-    with heavier rows being concentrated in fewer threads at the end.
+    This scheduling change is introduced together with OPT-1--3, so its effect
+    is not isolated separately; it is included because it is consistent with the
+    triangular work profile of Phase~3.
 \end{enumerate}
 
 % ======================================================================
@@ -271,22 +280,33 @@ version ordering in the reported comparisons.
 Performance is expressed in GFLOP/s $= n^3/(3 \times t \times 10^9)$.
 Timings measure the factorization routine only; matrix generation,
 initialization, and correctness checks are excluded.
+The plotted code versions are the current submission files
+\texttt{v1\_baseline}, \texttt{v2\_serial\_opt}, \texttt{v3\_openmp},
+\texttt{v4\_openmp\_blocked}, and \texttt{v5\_openmp\_blocked}.
+The Git tags below document the historical optimisation lineage.  Where a
+historical tagged filename differs from the current filename, the mapping is
+stated explicitly so it can be verified with \texttt{git show}.
 
 \paragraph{Git tags.}
 \begin{center}
-\begin{tabular}{lll}
+\begin{tabular}{llll}
 \toprule
-Tag & Source file & Description \\
+Tag & Commit & File at tag & Description \\
 \midrule
-\texttt{v0.1-baseline}   & \texttt{src/cholesky\_v1\_baseline.c}        & Spec loop, \texttt{-O0} \\
-\texttt{v0.2-serial-opt} & \texttt{src/cholesky\_v2\_serial\_opt.c}     & Loop interchange, \texttt{-O3} \\
-\texttt{v0.3-openmp-v1}  & \texttt{src/cholesky\_v3\_openmp.c}          & First OpenMP version \\
-\texttt{v0.4-blocked}    & \texttt{src/cholesky\_v4\_openmp\_blocked.c} & Panel-blocked, NB=96 \\
-\texttt{v0.5-tuned}      & \texttt{src/cholesky\_v4\_openmp\_blocked.c} & Correctness fix (lower-triangle Phase~1) \\
-\texttt{v0.6-cache-opts} & \texttt{src/cholesky\_v5\_openmp\_blocked.c} & OPT-1--4 microarchitectural \\
+\texttt{v0.1-baseline}   & \texttt{317a095} & \texttt{src/cholesky\_v1\_baseline.c} & Spec loop, \texttt{-O0} baseline \\
+\texttt{v0.2-serial-opt} & \texttt{dca7c6a} & \texttt{src/cholesky\_v2\_serial\_opt.c} & Loop interchange and serial \texttt{-O3} tuning \\
+\texttt{v0.3-openmp-v1}  & \texttt{f6b5509} & \texttt{src/cholesky\_v3\_openmp.c} & First OpenMP version: persistent team + trailing-update \texttt{omp for} \\
+\texttt{v0.4-blocked}    & \texttt{de66c37} & \texttt{src/cholesky\_v5\_openmp\_blocked.c} & First blocked OpenMP prototype (NB=128, parallel SYRK only, upper triangle still scratch) \\
+\texttt{v0.5-tuned}      & \texttt{7e70e05} & \texttt{src/cholesky\_v5\_openmp\_blocked.c} & Source state at tag: corrected blocked kernel (lower-triangle fix, explicit lower$\rightarrow$upper copy, split parallel TRSM and SYRK phases); the tagged commit updated benchmark results --- the source corrections appear in preceding commits (see \texttt{git log v0.4-blocked..v0.5-tuned -- src/}) \\
+\texttt{v0.6-cache-opts} & \texttt{614adbf} & \texttt{src/cholesky\_v6\_openmp\_blocked.c} & Adds col-pack, private \texttt{l11}, $j{\times}4$ unroll, \texttt{schedule(static,1)} \\
 \bottomrule
 \end{tabular}
 \end{center}
+The current submission keeps the blocked baseline as
+\texttt{src/cholesky\_v4\_openmp\_blocked.c}, which is a cleaned/commented
+equivalent of the historical \texttt{v0.5-tuned} stage, and the final
+cache-optimised kernel as \texttt{src/cholesky\_v5\_openmp\_blocked.c}, which is
+the current equivalent of the historical \texttt{v0.6-cache-opts} stage.
 
 % ======================================================================
 \section{Results}

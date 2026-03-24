@@ -150,7 +150,7 @@ but still far below linear.
 
 Replacing the column-by-column outer loop with a panel-of-$\mathrm{NB}$-columns
 loop reduces synchronisation from $O(n)$ barriers to $O(n/\mathrm{NB})$.
-For $n=8000$, $\mathrm{NB}=96$ gives 83 barrier groups instead of 8000.
+For $n=8000$, $\mathrm{NB}=96$ gives 84 panel iterations instead of 8000.
 Each panel pass performs three phases:
 
 \begin{enumerate}
@@ -176,12 +176,19 @@ Each panel pass performs three phases:
     \texttt{\#pragma~omp~simd reduction(+:dot)} vectorizes the inner dot product.
 \end{enumerate}
 
-The panel width $\mathrm{NB}=96$ was selected by empirical sweep over
-$\{64,96,128,192,256\}$ at $n=8000$, 76~threads (Figure~\ref{fig:blocksweep}).
-NB=96 peaks at 149.5~GFLOP/s; NB=64 pays a higher synchronisation cost
-(125 vs.\ 83 panels); NB$\geq$128 degrades due to increased cache pressure
-from stride-$n$ column accesses in Phase~1 (panel row $=$ NB$\times$8~bytes;
-at NB=96, 768~B is small relative to the 48~KB L1 cache per core).
+The panel width was tuned empirically for \texttt{v5\_openmp\_blocked} by sweeping
+$\{64,96,128,192,256\}$ at $n=8000$ and thread counts $\{1,8,32,76\}$
+(Figure~\ref{fig:blocksweep}). The optimum is thread-dependent:
+NB$=96$ gives the highest mean throughput at 1~thread (6.24~GFLOP/s) and
+76~threads (187.8~GFLOP/s), whereas NB$=256$ is best at 8~threads
+(37.7~GFLOP/s) and 32~threads (97.9~GFLOP/s). This is consistent with a tradeoff
+between barrier overhead and cache locality. Larger panels reduce the number of
+panel iterations from 84 at NB$=96$ to 32 at NB$=256$, which helps at
+intermediate thread counts. At full-node occupancy, however, the smaller panel
+regains a slight advantage; NB$=256$ remains very close at 186.9~GFLOP/s, so the
+full-thread optimum is broad. Because the main strong-scaling study uses a
+single fixed kernel configuration, NB$=96$ is retained as the default setting
+for the report.
 
 \subsection{v5\_openmp\_blocked --- Microarchitectural optimisation (tag \texttt{v0.6-cache-opts})}
 
@@ -331,17 +338,23 @@ absence of additional parallelism.
 
 \subsection{Panel-width selection}
 
-Figure~\ref{fig:blocksweep} shows the NB sweep for v4 at $n=8000$, 76~threads.
-NB=96 (panel row $= 768$~B, fits in 48~KB L1) peaks at 149.5~GFLOP/s.
-Smaller NB increases barrier frequency (NB=64: 125 vs.\ 83 panels).
-Larger NB degrades monotonically (NB=128: 137.8; NB=256: 121.7~GFLOP/s),
-consistent with growing L1/L2 pressure from stride-$n$ column accesses.
+Figure~\ref{fig:blocksweep} shows the NB sweep for \texttt{v5\_openmp\_blocked}
+at $n=8000$ across 1, 8, 32, and 76~threads. The best NB depends on thread
+count: NB$=96$ is best at 1~thread and 76~threads, while NB$=256$ is best at
+8~threads and 32~threads. The left panel shows that at intermediate thread
+counts performance increases steadily with NB, indicating that lower panel
+counts (84 at NB$=96$ versus 32 at NB$=256$) outweigh the extra cache pressure.
+At 76~threads the curve flattens, and NB$=96$ has the highest mean throughput
+(187.8~GFLOP/s) with NB$=256$ only 0.5\% lower, suggesting a broad optimum near
+the full-node operating point used in the rest of the study.
 
 \begin{figure}[h]
   \centering
-  \includegraphics[width=0.58\textwidth]{figures/fig8_block_sweep.pdf}
-  \caption{GFLOP/s vs.\ panel width NB (v4\_openmp\_blocked, $n=8000$, 76~threads,
-           CSD3 icelake, 3~reps).}
+  \includegraphics[width=\textwidth]{figures/fig8_block_sweep.pdf}
+  \caption{Panel-width sweep for \texttt{v5\_openmp\_blocked} at $n=8000$
+           on CSD3 icelake (3~reps per point). Left: GFLOP/s vs.\ NB for
+           thread counts 1, 8, 32, and 76. Right: best-performing NB at each
+           thread count.}
   \label{fig:blocksweep}
 \end{figure}
 
@@ -394,7 +407,7 @@ algorithm's high synchronization frequency and weaker cache locality.
 \paragraph{v4 near-linear scaling.}
 At $n=8000$, v4 achieves 59.5$\times$ speedup and 78.2\% efficiency at
 76~threads (147.2~GFLOP/s), with near-linear scaling to 32~threads.
-Each of the 83 parallel-work panels replaces approximately NB=96 individual
+Each of the 84 parallel-work panels replaces approximately NB=96 individual
 column steps from v3, substantially reducing synchronisation frequency.
 
 \paragraph{v5 microarchitectural gain.}

@@ -14,6 +14,11 @@
 # Block-size sweep for blocked OpenMP versions on CSD3 icelake.
 # Submits from project root:
 #   sbatch scripts/csd3_block_sweep.slurm
+#
+# Useful overrides:
+#   sbatch --export=ALL,VERSION=v5_openmp_blocked scripts/csd3_block_sweep.slurm
+#   sbatch --export=ALL,THREAD_LIST="1 8 32 76" scripts/csd3_block_sweep.slurm
+#   sbatch --export=ALL,VERSION=v5_openmp_blocked,THREAD_LIST="1 8 32 76",BLOCK_SIZES="64 96 128 192 256" scripts/csd3_block_sweep.slurm
 
 # Always run from the project root (where Makefile lives)
 if [ -f "$SLURM_SUBMIT_DIR/Makefile" ]; then

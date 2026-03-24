@@ -1,6 +1,6 @@
 #!/bin/bash
 # sweep_block_size.sh — compile a blocked OpenMP version with different BLOCK_NB values
-# and record performance for each panel width.
+# and record performance for each panel width and thread count.
 #
 # Usage (on CSD3, inside a SLURM job or interactive session):
 #   bash scripts/sweep_block_size.sh
@@ -15,19 +15,18 @@
 set -euo pipefail
 
 # -----------------------------------------------------------------------
-# Configuration — adjust if needed
+# Configuration — override with env vars if needed
 # -----------------------------------------------------------------------
-N=8000                          # Matrix size (large enough to be memory-bound)
-THREADS=76                      # Thread count (all icelake physical cores)
-REPS=3                          # Repetitions per (BLOCK_NB, n, threads) cell
-BLOCK_SIZES="64 96 128 192 256" # Panel widths to sweep
-VERSION=${VERSION:-v4_openmp_blocked}  # Default matches report Fig. 8; override as needed
-OUT=results/block_sweep.csv
+N=${N:-8000}                                 # Matrix size
+THREAD_LIST=${THREAD_LIST:-${THREADS:-76}}   # Backward-compatible: THREADS still works
+REPS=${REPS:-3}                              # Repetitions per (BLOCK_NB, n, threads) cell
+BLOCK_SIZES=${BLOCK_SIZES:-"64 96 128 192 256"}
+VERSION=${VERSION:-v4_openmp_blocked}        # Override as needed
+OUT=${OUT:-results/block_sweep.csv}
 
 # Thread affinity settings — keep threads on nearby physical cores
-export OMP_PROC_BIND=close
-export OMP_PLACES=cores
-export OMP_NUM_THREADS=$THREADS
+export OMP_PROC_BIND=${OMP_PROC_BIND:-close}
+export OMP_PLACES=${OMP_PLACES:-cores}
 
 # -----------------------------------------------------------------------
 mkdir -p results
@@ -35,7 +34,8 @@ mkdir -p results
 # Always write a fresh header — overwrites any stale/incorrect previous run
 echo "version,BLOCK_NB,n,threads,rep,time_s,gflops" > "$OUT"
 
-echo "Block-size sweep: n=$N, threads=$THREADS, reps=$REPS"
+echo "Block-size sweep: n=$N, reps=$REPS"
+echo "Thread counts: $THREAD_LIST"
 echo "Panel widths: $BLOCK_SIZES"
 echo "Output: $OUT"
 echo ""
@@ -53,10 +53,13 @@ for NB in $BLOCK_SIZES; do
         exit 1
     fi
 
-    echo "    Running n=$N, threads=$THREADS, reps=$REPS ..."
-    # benchmark outputs:  n,threads,rep,time_s,gflops
-    # Prepend BLOCK_NB to each line before appending to the CSV
-    ./test/benchmark $N $REPS | sed "s/^/${VERSION},${NB},/" >> "$OUT"
+    for threads in $THREAD_LIST; do
+        export OMP_NUM_THREADS="$threads"
+        echo "    Running n=$N, threads=$threads, reps=$REPS ..."
+        # benchmark outputs: n,threads,rep,time_s,gflops
+        # Prepend version and BLOCK_NB before appending to the CSV.
+        ./test/benchmark "$N" "$REPS" | sed "s/^/${VERSION},${NB},/" >> "$OUT"
+    done
 done
 
 echo ""

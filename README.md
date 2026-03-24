@@ -100,7 +100,13 @@ sbatch scripts/csd3_serial.slurm
 # OpenMP strong scaling (v3_openmp vs v4_openmp_blocked vs v5_openmp_blocked, n=2000–8000, 1–76 threads)
 sbatch scripts/csd3_scaling.slurm
 
-# Results are written to results/csd3_serial.csv and results/csd3_scaling.csv
+# Panel-width sweep for blocked versions (default: one thread count; override THREAD_LIST to compare several)
+sbatch --export=ALL,VERSION=v5_openmp_blocked,THREAD_LIST="1 8 32 76" scripts/csd3_block_sweep.slurm
+
+# Results are written to results/csd3_serial.csv, results/csd3_scaling.csv,
+# and results/block_sweep.csv. Plot the block sweep with:
+# python3 scripts/plot_block_sweep.py
+# This also writes results/block_sweep_summary.csv and report/figures/fig8_block_sweep.pdf
 ```
 
 Submit scripts from the project root directory (where the `Makefile` lives),

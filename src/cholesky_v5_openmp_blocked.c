@@ -143,7 +143,9 @@ double mphil_dis_cholesky(double *c, int n)
 
                     /* Subtract within-panel contributions from columns k..p-1.
                      * l11[(p-k)*BLOCK_NB + (s-k)] replaces c[p*n+s]:
-                     * stride-NB (768 B between rows) vs stride-n (64 KB). */
+                     * stride-NB (768 B between rows) vs stride-n (64 KB).
+                     * omp simd reduction(-:val) vectorises the dot product while
+                     * preserving the running subtraction into val. */
                     #pragma omp simd reduction(-:val)
                     for (int s = k; s < p; s++)
                         val -= row_i[s] * l11[(p - k) * BLOCK_NB + (s - k)];
@@ -200,6 +202,8 @@ double mphil_dis_cholesky(double *c, int n)
                 for (; j <= i; j++) {
                     double *pj  = &c[(size_t)j * n + k];
                     double  dot = 0.0;
+                    /* omp simd reduction(+:dot) vectorises the final short dot
+                     * product and combines lane-local partial sums safely. */
                     #pragma omp simd reduction(+:dot)
                     for (int p = 0; p < panel_width; p++)
                         dot += panel_i[p] * pj[p];

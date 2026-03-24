@@ -30,7 +30,8 @@ A flat OpenMP parallelization reaches at most 46.2~GFLOP/s at 48~threads for
 $n=2000$, then \emph{degrades}, consistent with synchronization overhead
 becoming dominant at high thread counts.
 Restructuring into a right-looking panel-blocked algorithm (panel width
-$\mathrm{NB}=96$) reduces barrier count from $n$ to $\lceil n/\mathrm{NB}\rceil$,
+$\mathrm{NB}=96$) reduces the number of outer synchronization stages from
+$n$ column steps to $\lceil n/\mathrm{NB}\rceil$ panels,
 giving 59.5$\times$ speedup and 78.2\% efficiency at 76~threads for $n=8000$
 (147.2~GFLOP/s).
 Four additional optimizations---column packing, a private packed panel block,
@@ -154,7 +155,8 @@ but still far below linear.
 \subsection{v4\_openmp\_blocked --- Panel-blocked algorithm}
 
 Replacing the column-by-column outer loop with a panel-of-$\mathrm{NB}$-columns
-loop reduces synchronisation from $O(n)$ barriers to $O(n/\mathrm{NB})$.
+loop reduces the number of synchronization stages from $O(n)$ column steps to
+$O(n/\mathrm{NB})$ panels.
 For $n=8000$, $\mathrm{NB}=96$ gives 84 panel iterations instead of 8000.
 Each panel pass performs three phases:
 
@@ -330,8 +332,9 @@ where both versions follow the same $O(n^3)$ slope.
     \caption{Wall-clock time vs.\ $n$ (log-log).}
     \label{fig:serialtime}
   \end{subfigure}
-  \caption{Serial performance. CSD3 icelake, 1~thread, \texttt{-O3 -march=native -ffast-math},
-           3~reps, error bars $=\pm1$~SD.}
+  \caption{Serial performance on CSD3 icelake, 1~thread, 3~reps,
+           error bars $=\pm1$~SD. v1 uses \texttt{-O0 -g}; v2 uses
+           \texttt{-O3 -march=native -ffast-math}.}
 \end{figure}
 
 \subsection{Incremental optimisation}
@@ -390,24 +393,30 @@ merged into \texttt{results/csd3\_scaling.csv}.
 \begin{figure}[h]
   \centering
   \includegraphics[width=\textwidth]{figures/fig2_scaling_gflops.pdf}
-  \caption{Strong scaling: GFLOP/s vs.\ thread count.
-           CSD3 icelake, error bars $=\pm1$~SD over available repetitions.}
+  \caption{Strong scaling of \texttt{v3\_openmp}, \texttt{v4\_openmp\_blocked}
+           (NB=96), and \texttt{v5\_openmp\_blocked} (NB=96):
+           GFLOP/s vs.\ thread count on CSD3 icelake, error bars $=\pm1$~SD
+           over available repetitions.}
   \label{fig:scaling}
 \end{figure}
 
 \begin{figure}[h]
   \centering
   \includegraphics[width=\textwidth]{figures/fig3_scaling_speedup.pdf}
-  \caption{Strong scaling: speedup $T_1/T_p$ vs.\ threads (log-log axes).
-           Dashed line: ideal linear speedup.
-           CSD3 icelake, computed from mean runtimes over available repetitions.}
+  \caption{Strong scaling of \texttt{v3\_openmp}, \texttt{v4\_openmp\_blocked}
+           (NB=96), and \texttt{v5\_openmp\_blocked} (NB=96):
+           speedup $T_1/T_p$ vs.\ threads (log-log axes). Dashed line:
+           ideal linear speedup. CSD3 icelake, computed from mean runtimes
+           over available repetitions.}
   \label{fig:speedup}
 \end{figure}
 
 \begin{figure}[h]
   \centering
   \includegraphics[width=\textwidth]{figures/fig4_scaling_efficiency.pdf}
-  \caption{Strong scaling: parallel efficiency $T_1/(p \cdot T_p)$ vs.\ threads.
+  \caption{Strong scaling of \texttt{v3\_openmp}, \texttt{v4\_openmp\_blocked}
+           (NB=96), and \texttt{v5\_openmp\_blocked} (NB=96):
+           parallel efficiency $T_1/(p \cdot T_p)$ vs.\ threads.
            CSD3 icelake, computed from mean runtimes over available repetitions.}
   \label{fig:efficiency}
 \end{figure}
@@ -416,8 +425,9 @@ merged into \texttt{results/csd3\_scaling.csv}.
 At $n=2000$, v3 peaks at 46.2~GFLOP/s (48~threads) and degrades to
 33.7~GFLOP/s at 76~threads.
 Efficiency is only 14.2\% at 76~threads.
-The factorization performs $n=2000$ synchronisation points; the parallel work
-per step ($\approx(n-p)^2/T$) likely falls below the barrier overhead
+The factorization performs $n=2000$ column steps, each ending with thread
+synchronization; the parallel work per step ($\approx(n-p)^2/T$) likely falls
+below the barrier overhead
 at high $T$, consistent with the observed efficiency of 14.2\% at 76~threads.
 With the newly completed large-$n$ curves, the same implementation reaches only
 26.3~GFLOP/s at $n=6000$ and 12.9~GFLOP/s at $n=8000$ at 76~threads,
@@ -486,12 +496,13 @@ limitations, at larger sizes.
 \paragraph{Amdahl analysis.}
 v3's limited scaling at $n=4000$, 76~threads ($31.6\times$, 41.6\% efficiency)
 likely reflects two effects: repeated serial sections in each iteration, and
-the overhead of $n=4000$ synchronisation points.
+the overhead of 4000 synchronization-heavy column steps.
 Although the trailing update dominates the total flop count asymptotically,
 the per-step serial work and synchronisation overhead become increasingly
 visible at high thread counts.
 v4 largely alleviates both effects by reducing the serial work to $O(\mathrm{NB}^3)$
-per panel and the number of synchronisation points to 83.
+per panel and replacing 4000 column steps with only 42 panel iterations at
+$n=4000$.
 
 \paragraph{Super-linear speedup.}
 v3 at $n=4000$ shows super-linear speedup at 2--8~threads (8.30$\times$ at

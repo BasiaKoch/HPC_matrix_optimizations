@@ -83,16 +83,17 @@ The block sweep shows that the best `NB` is thread-dependent:
 `NB=96` is therefore kept as the default because it is the best mean full-node
 choice for the main 76-thread runs. A panel row of 96 doubles occupies 768 B,
 and the packed NB×NB block is about 74 KB, fitting comfortably in the 1.25 MB
-L2 per core. Smaller matrices (n < 500) are memory-bound at any thread count.
+L2 per core.
 
-Measured peak performance on CSD3 icelake (76 threads, `v5_openmp_blocked`, NB=96):
+Measured mean performance in the main scaling dataset on CSD3 icelake
+(76 threads, `v5_openmp_blocked`, NB=96):
 
 | n    | GFlop/s | Speedup vs 1 thread |
 |------|---------|---------------------|
 | 2000 | 238     | 23×                 |
 | 4000 | 205     | 28×                 |
 | 6000 | 186     | 28×                 |
-| 8000 | 181     | 29×                 |
+| 8000 | 183     | 29×                 |
 
 ## Running Benchmarks on CSD3
 

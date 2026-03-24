@@ -8,7 +8,7 @@
  *  4. Bounds guard: n=0 and n=100001 must return -1.0
  *  5. L*L^T reconstruction + log-det vs numpy reference (n=5, 50, 200, 500)
  *  6. Upper-triangle layout: verify c[i*n+j] == c[j*n+i] for all i < j
- *  7. Positive return value: elapsed time must be > 0
+ *  7. Non-negative return value: elapsed time must be >= 0
  *
  * Log-det reference values computed with numpy.linalg.cholesky on the
  * same corr() matrix used here (see scripts/plot_results.py / analysis_notes.md).

@@ -1,20 +1,34 @@
 /*
- * test_correctness.c — correctness tests for mphil_dis_cholesky
+ * test_correctness.c — comprehensive correctness tests for mphil_dis_cholesky
  *
- * Test suite:
- *  1. 2x2 spec example: exact element values + log|C| vs log(100)
- *  2. 3x3 hand-computed: every element of lower AND upper triangle + log|C|
- *  3. n=1 edge case: single-element matrix
- *  4. Bounds guard: n=0 and n=100001 must return -1.0
- *  5. L*L^T reconstruction + log-det vs numpy reference (n=5, 50, 200)
- *  6. Log-det formula check (redundant confirmation of tests 1 & 2)
- *  7. Block-boundary sizes: n=NB-1, NB, NB+1, 2*NB, 2*NB+1 (reconstruction + symmetry)
- *  8. Multi-thread agreement: 1/2/4/8 threads produce same L to 1e-8 (if OpenMP)
+ * Test suite
+ * ----------
+ *  1. 2x2 spec example             exact element values + logdet
+ *  2. 3x3 hand-computed            exact element values + logdet
+ *  3. n=1 edge case
+ *  4. Bounds guard                 n=0 and n=100001 must return -1.0
+ *  5. Known-L reconstruction       generate L_ref, form A=L_ref*L_ref^T, compare
+ *     sizes: 5, 95, 96, 97, 191, 192, 193, 255, 256, 257
+ *  6. Numerically stressed SPD     diagonal L_ref with range 10^0 .. 10^{-12}
+ *     sizes: 32, 96
+ *  7. corr() reconstruction        coursework matrix; logdet vs numpy ref
+ *     sizes: 50, 200, 500
+ *  8. Multi-thread agreement       2/4/8/76 threads vs 1-thread output
+ *     sizes: 96, 200, 500
  *
- * Log-det reference values computed with numpy.linalg.cholesky on the
- * same corr() matrix used here (see scripts/plot_results.py / analysis_notes.md).
+ * Metrics on every nontrivial case
+ * ---------------------------------
+ *  max|L - L_ref|          (known-L and stressed, where L_ref is available)
+ *  ||A - LL^T||_max        (all reconstruction tests)
+ *  ||A - LL^T||_F / ||A||_F
+ *  max_{i<j} |c[i*n+j] - c[j*n+i]|
+ *  all L[i,i] > 0
+ *  |logdet_computed - logdet_ref|  (derived from L_ref, or numpy ref for corr())
  *
- * Build (performance flags):  make test VERSION=v5_openmp_blocked NB=96
+ * Actual measured residuals are printed alongside every PASS/FAIL verdict.
+ * logdet is a secondary sanity check only; it does not replace reconstruction.
+ *
+ * Build (performance flags):      make test VERSION=v5_openmp_blocked NB=96
  * Build (strict, no -ffast-math): make test-strict VERSION=v5_openmp_blocked NB=96
  * Returns: 0 if all tests pass, 1 otherwise.
  */
@@ -28,431 +42,477 @@
 #  include <omp.h>
 #endif
 
-/* Panel width used for block-boundary tests; matches the compiled kernel. */
+/* Default panel width; overridden by -DBLOCK_NB=$(NB) at compile time. */
 #ifndef BLOCK_NB
 #  define BLOCK_NB 96
 #endif
 
-/* Absolute tolerance for direct element comparisons (exact rational results). */
-#define TOL_EXACT   1e-10
-/* Absolute tolerance for log-det comparisons against numpy reference. */
-#define TOL_LOGDET  1e-6
-/* Absolute tolerance for L*L^T reconstruction max entry error. */
-#define TOL_RECON   1e-8
+/* Tolerances */
+#define TOL_EXACT        1e-10   /* exact rational results (2x2, 3x3)          */
+#define TOL_KNOWN_L      1e-10   /* max|L - L_ref|, O(1) entries               */
+#define TOL_RECON        1e-8    /* ||A - LL^T||_max                            */
+#define TOL_REL_RECON    1e-10   /* ||A - LL^T||_F / ||A||_F                   */
+#define TOL_SYM          1e-12   /* upper-triangle symmetry                     */
+#define TOL_LOGDET       1e-6    /* |logdet_computed - logdet_ref|              */
+#define TOL_THREAD       1e-10   /* max diff between t-thread and 1-thread L    */
 
-/* ------------------------------------------------------------------ */
+/* ================================================================== */
 /* Test harness                                                         */
-/* ------------------------------------------------------------------ */
+/* ================================================================== */
 static int tests_run    = 0;
 static int tests_failed = 0;
 
 static void check(const char *label, int ok)
 {
     tests_run++;
-    if (ok) {
+    if (ok)
         printf("  PASS  %s\n", label);
-    } else {
+    else {
         printf("  FAIL  %s\n", label);
         tests_failed++;
     }
 }
 
-/* ------------------------------------------------------------------ */
-/* Test 1 — 2x2 spec example from the coursework brief                 */
-/*                                                                     */
-/* C = [[4, 2], [2, 26]]   =>   L = [[2, 0], [1, 5]]                  */
-/* det(C) = 4*26 - 2*2 = 100   =>   log|C| = log(100)                 */
-/*                                                                     */
-/* Output layout (row-major):                                          */
-/*   c[0]=2  c[1]=L^T[0,1]=L[1,0]=1                                   */
-/*   c[2]=1  c[3]=5                                                    */
-/* ------------------------------------------------------------------ */
+/* ================================================================== */
+/* Matrix generators                                                    */
+/* ================================================================== */
+
+/* Coursework corr() matrix: C[i,j] = 0.99*exp(-8*(i-j)^2/n^2), C[i,i]=1 */
+static void fill_corr(double *c, int n)
+{
+    for (int i = 0; i < n; i++) {
+        for (int j = 0; j < n; j++) {
+            double d = (double)(i - j) / (double)n;
+            c[(size_t)i*n+j] = 0.99 * exp(-0.5 * 16.0 * d * d);
+        }
+        c[(size_t)i*n+i] = 1.0;
+    }
+}
+
+/*
+ * Deterministic lower-triangular L_ref with positive diagonal.
+ *   L[i,i] = 1 + 0.5*|sin(i+1)|          in [1.0, 1.5]
+ *   L[i,j] = 0.3*sin(7i + 13j + 1)       for j < i, bounded in [-0.3, 0.3]
+ */
+static void fill_known_L(double *L, int n)
+{
+    for (int i = 0; i < n; i++) {
+        for (int j = 0; j < i; j++)
+            L[(size_t)i*n+j] = 0.3 * sin((double)(7*i + 13*j + 1));
+        L[(size_t)i*n+i] = 1.0 + 0.5 * fabs(sin((double)(i + 1)));
+        for (int j = i+1; j < n; j++)
+            L[(size_t)i*n+j] = 0.0;
+    }
+}
+
+/*
+ * Numerically stressed: purely diagonal L_ref spanning 10^0 .. 10^{-12}.
+ * Off-diagonals are zero so A = diag(d_i^2) and Chol(A)[i,i] = d_i exactly.
+ */
+static void fill_stressed_L(double *L, int n)
+{
+    memset(L, 0, (size_t)n * n * sizeof(double));
+    for (int i = 0; i < n; i++) {
+        double t = (n > 1) ? (double)i / (double)(n - 1) : 0.0;
+        L[(size_t)i*n+i] = pow(10.0, -12.0 * t);
+    }
+}
+
+/* A = L * L^T  (uses lower triangle of L; stores full symmetric result) */
+static void form_A(double *A, const double *L, int n)
+{
+    for (int i = 0; i < n; i++)
+        for (int j = 0; j < n; j++) {
+            double s = 0.0;
+            int kmax = (i < j) ? i : j;
+            for (int k = 0; k <= kmax; k++)
+                s += L[(size_t)i*n+k] * L[(size_t)j*n+k];
+            A[(size_t)i*n+j] = s;
+        }
+}
+
+/* ================================================================== */
+/* Metric checking                                                      */
+/* ================================================================== */
+
+/*
+ * Compute and check all six metrics for a factorized result.
+ *
+ *  prefix     - short string prepended to each label (identifies the case)
+ *  A_orig     - original SPD matrix (n×n row-major, must not be modified)
+ *  fact       - factorized output: lower triangle = L, upper = L^T
+ *  L_ref      - reference factor; NULL if unavailable
+ *  n          - matrix dimension
+ *  logdet_ref - numpy/external reference for logdet, or NAN
+ *               (if NAN and L_ref != NULL, derived automatically from L_ref diagonal)
+ */
+static void check_all_metrics(const char *prefix,
+                               const double *A_orig, const double *fact,
+                               const double *L_ref, int n, double logdet_ref)
+{
+    char lbl[320];
+
+    /* ---- (a) Direct L comparison ---------------------------------- */
+    if (L_ref) {
+        double max_L_err = 0.0;
+        for (int i = 0; i < n; i++)
+            for (int j = 0; j <= i; j++) {
+                double e = fabs(fact[(size_t)i*n+j] - L_ref[(size_t)i*n+j]);
+                if (e > max_L_err) max_L_err = e;
+            }
+        snprintf(lbl, sizeof(lbl),
+                 "%s  max|L-L_ref|=%.3e (tol=%.0e)", prefix, max_L_err, TOL_KNOWN_L);
+        check(lbl, max_L_err < TOL_KNOWN_L);
+    }
+
+    /* ---- (b) Reconstruction max-norm and relative Frobenius ------- */
+    double max_recon = 0.0, ssq_err = 0.0, ssq_A = 0.0;
+    for (int i = 0; i < n; i++)
+        for (int j = 0; j < n; j++) {
+            double s = 0.0;
+            int kmax = (i < j) ? i : j;
+            for (int k = 0; k <= kmax; k++)
+                s += fact[(size_t)i*n+k] * fact[(size_t)j*n+k];
+            double e = fabs(s - A_orig[(size_t)i*n+j]);
+            if (e > max_recon) max_recon = e;
+            ssq_err += e * e;
+            ssq_A   += A_orig[(size_t)i*n+j] * A_orig[(size_t)i*n+j];
+        }
+    double rel_recon = (ssq_A > 0.0) ? sqrt(ssq_err / ssq_A) : sqrt(ssq_err);
+
+    snprintf(lbl, sizeof(lbl),
+             "%s  ||A-LL^T||_max=%.3e (tol=%.0e)", prefix, max_recon, TOL_RECON);
+    check(lbl, max_recon < TOL_RECON);
+
+    snprintf(lbl, sizeof(lbl),
+             "%s  ||A-LL^T||_F/||A||_F=%.3e (tol=%.0e)",
+             prefix, rel_recon, TOL_REL_RECON);
+    check(lbl, rel_recon < TOL_REL_RECON);
+
+    /* ---- (c) Symmetry --------------------------------------------- */
+    double max_sym = 0.0;
+    for (int i = 0; i < n; i++)
+        for (int j = i+1; j < n; j++) {
+            double e = fabs(fact[(size_t)i*n+j] - fact[(size_t)j*n+i]);
+            if (e > max_sym) max_sym = e;
+        }
+    snprintf(lbl, sizeof(lbl),
+             "%s  max_sym=%.3e (tol=%.0e)", prefix, max_sym, TOL_SYM);
+    check(lbl, max_sym < TOL_SYM);
+
+    /* ---- (d) Diagonal positivity ---------------------------------- */
+    double min_diag = 1.0;
+    int    diag_ok  = 1;
+    for (int i = 0; i < n; i++) {
+        double d = fact[(size_t)i*n+i];
+        if (i == 0 || d < min_diag) min_diag = d;
+        if (d <= 0.0) { diag_ok = 0; }
+    }
+    snprintf(lbl, sizeof(lbl),
+             "%s  all L[i,i]>0  (min=%.3e)", prefix, min_diag);
+    check(lbl, diag_ok);
+
+    /* ---- (e) logdet ------------------------------------------------ */
+    double logdet = 0.0;
+    for (int i = 0; i < n; i++)
+        logdet += log(fact[(size_t)i*n+i]);
+    logdet *= 2.0;
+
+    /* Derive reference from L_ref if no external reference supplied */
+    double ref = logdet_ref;
+    if (isnan(ref) && L_ref) {
+        ref = 0.0;
+        for (int i = 0; i < n; i++)
+            ref += log(L_ref[(size_t)i*n+i]);
+        ref *= 2.0;
+    }
+
+    if (!isnan(ref)) {
+        double diff = fabs(logdet - ref);
+        snprintf(lbl, sizeof(lbl),
+                 "%s  |logdet_diff|=%.3e (tol=%.0e)  got=%.6g ref=%.6g",
+                 prefix, diff, TOL_LOGDET, logdet, ref);
+        check(lbl, diff < TOL_LOGDET);
+    } else {
+        printf("  INFO  %s  logdet=%.10g (no reference)\n", prefix, logdet);
+    }
+}
+
+/* ================================================================== */
+/* Test 1 — 2x2 spec example                                           */
+/* ================================================================== */
 static void test_2x2(void)
 {
     printf("\n=== Test 1: 2x2 spec example ===\n");
     double c[4] = {4.0, 2.0, 2.0, 26.0};
     double t = mphil_dis_cholesky(c, 2);
-
-    /* Lower triangle */
-    check("L[0,0] = 2",              fabs(c[0] - 2.0) < TOL_EXACT);
-    check("L[1,0] = 1",              fabs(c[2] - 1.0) < TOL_EXACT);
-    check("L[1,1] = 5",              fabs(c[3] - 5.0) < TOL_EXACT);
-
-    /* Upper triangle (must be L^T) */
-    check("L^T[0,1] = L[1,0] = 1",  fabs(c[1] - 1.0) < TOL_EXACT);
-
-    /* log|C| = 2*(log(2) + log(5)) = log(100) */
-    double logdet = 2.0 * (log(c[0]) + log(c[3]));
-    check("log|C| = log(100)",       fabs(logdet - log(100.0)) < TOL_EXACT);
-
-    /* Timing must be non-negative */
-    check("elapsed time >= 0",       t >= 0.0);
+    check("L[0,0]=2",          fabs(c[0]-2.0) < TOL_EXACT);
+    check("L[1,0]=1",          fabs(c[2]-1.0) < TOL_EXACT);
+    check("L[1,1]=5",          fabs(c[3]-5.0) < TOL_EXACT);
+    check("L^T[0,1]=1",        fabs(c[1]-1.0) < TOL_EXACT);
+    double logdet = 2.0*(log(c[0])+log(c[3]));
+    check("logdet=log(100)",   fabs(logdet-log(100.0)) < TOL_EXACT);
+    check("elapsed>=0",        t >= 0.0);
 }
 
-/* ------------------------------------------------------------------ */
+/* ================================================================== */
 /* Test 2 — 3x3 hand-computed                                          */
-/*                                                                     */
-/* C = [[4,2,2],[2,3,1],[2,1,3]]                                       */
-/* L = [[2,0,0],[1,sqrt(2),0],[1,0,sqrt(2)]]   det(C)=16              */
-/*                                                                     */
-/* Output layout:                                                      */
-/*   row 0: c[0]=2,       c[1]=1,       c[2]=1                        */
-/*   row 1: c[3]=1,       c[4]=sqrt(2), c[5]=0                        */
-/*   row 2: c[6]=1,       c[7]=0,       c[8]=sqrt(2)                  */
-/* ------------------------------------------------------------------ */
+/* ================================================================== */
 static void test_3x3(void)
 {
     printf("\n=== Test 2: 3x3 hand-computed ===\n");
     double c[9] = {4.0,2.0,2.0, 2.0,3.0,1.0, 2.0,1.0,3.0};
     double t = mphil_dis_cholesky(c, 3);
-
     double sq2 = sqrt(2.0);
-
-    /* Lower triangle */
-    check("L[0,0] = 2",              fabs(c[0] - 2.0) < TOL_EXACT);
-    check("L[1,0] = 1",              fabs(c[3] - 1.0) < TOL_EXACT);
-    check("L[1,1] = sqrt(2)",        fabs(c[4] - sq2)  < TOL_EXACT);
-    check("L[2,0] = 1",              fabs(c[6] - 1.0) < TOL_EXACT);
-    check("L[2,1] = 0",              fabs(c[7] - 0.0) < TOL_EXACT);
-    check("L[2,2] = sqrt(2)",        fabs(c[8] - sq2)  < TOL_EXACT);
-
-    /* Upper triangle (must equal transposed lower) */
-    check("L^T[0,1]=L[1,0]=1",       fabs(c[1] - 1.0) < TOL_EXACT);
-    check("L^T[0,2]=L[2,0]=1",       fabs(c[2] - 1.0) < TOL_EXACT);
-    check("L^T[1,2]=L[2,1]=0",       fabs(c[5] - 0.0) < TOL_EXACT);
-
-    /* log|C| = log(16) */
-    double logdet = 2.0 * (log(c[0]) + log(c[4]) + log(c[8]));
-    check("log|C| = log(16)",        fabs(logdet - log(16.0)) < TOL_EXACT);
-
-    check("elapsed time >= 0",       t >= 0.0);
+    check("L[0,0]=2",      fabs(c[0]-2.0) < TOL_EXACT);
+    check("L[1,0]=1",      fabs(c[3]-1.0) < TOL_EXACT);
+    check("L[1,1]=sqrt2",  fabs(c[4]-sq2) < TOL_EXACT);
+    check("L[2,0]=1",      fabs(c[6]-1.0) < TOL_EXACT);
+    check("L[2,1]=0",      fabs(c[7]-0.0) < TOL_EXACT);
+    check("L[2,2]=sqrt2",  fabs(c[8]-sq2) < TOL_EXACT);
+    check("L^T[0,1]=1",   fabs(c[1]-1.0) < TOL_EXACT);
+    check("L^T[0,2]=1",   fabs(c[2]-1.0) < TOL_EXACT);
+    check("L^T[1,2]=0",   fabs(c[5]-0.0) < TOL_EXACT);
+    double logdet = 2.0*(log(c[0])+log(c[4])+log(c[8]));
+    check("logdet=log(16)", fabs(logdet-log(16.0)) < TOL_EXACT);
+    check("elapsed>=0",    t >= 0.0);
 }
 
-/* ------------------------------------------------------------------ */
-/* Test 3 — n=1 edge case: sqrt of a single positive element           */
-/* ------------------------------------------------------------------ */
+/* ================================================================== */
+/* Test 3 — n=1 edge case                                              */
+/* ================================================================== */
 static void test_n1(void)
 {
     printf("\n=== Test 3: n=1 edge case ===\n");
     double c[1] = {9.0};
     double t = mphil_dis_cholesky(c, 1);
-    check("c[0] = sqrt(9) = 3",     fabs(c[0] - 3.0) < TOL_EXACT);
-    check("log|C| = log(9)",         fabs(2.0*log(c[0]) - log(9.0)) < TOL_EXACT);
-    check("elapsed time >= 0",       t >= 0.0);
+    check("c[0]=3",     fabs(c[0]-3.0) < TOL_EXACT);
+    check("elapsed>=0", t >= 0.0);
 }
 
-/* ------------------------------------------------------------------ */
-/* Test 4 — bounds guard: n=0 and n>100000 must return -1.0            */
-/* ------------------------------------------------------------------ */
+/* ================================================================== */
+/* Test 4 — bounds guard                                               */
+/* ================================================================== */
 static void test_bounds(void)
 {
-    printf("\n=== Test 4: bounds guard (n=0 and n=100001) ===\n");
-    /* Pass a tiny 1-element buffer.  n=0 and n=100001 must be rejected
-     * immediately (return -1.0) without touching the buffer. */
+    printf("\n=== Test 4: bounds guard ===\n");
     double c[1] = {4.0};
-    check("n=0 returns -1.0",      mphil_dis_cholesky(c, 0)      == -1.0);
-    check("n=100001 returns -1.0", mphil_dis_cholesky(c, 100001) == -1.0);
-    /* n=1 must be accepted and compute sqrt(4)=2 correctly. */
-    check("n=1 returns >= 0",      mphil_dis_cholesky(c, 1)      >= 0.0);
-    check("n=1: c[0]=sqrt(4)=2",   fabs(c[0] - 2.0) < TOL_EXACT);
+    check("n=0 → -1.0",      mphil_dis_cholesky(c, 0)      == -1.0);
+    check("n=100001 → -1.0", mphil_dis_cholesky(c, 100001) == -1.0);
+    check("n=1 → >=0",       mphil_dis_cholesky(c, 1)      >= 0.0);
+    check("n=1: c[0]=2",     fabs(c[0]-2.0) < TOL_EXACT);
 }
 
-/* ------------------------------------------------------------------ */
-/* corr() matrix generator — matches the coursework brief exactly      */
-/*                                                                     */
-/* C[i,j] = 0.99 * exp(-0.5 * 16 * (i-j)^2 / n^2),  C[i,i] = 1      */
-/* ------------------------------------------------------------------ */
-static double corr(double x, double y, double s)
+/* ================================================================== */
+/* Test 5 — known-L reconstruction at block-boundary sizes             */
+/* ================================================================== */
+static void test_known_L(int n)
 {
-    return 0.99 * exp(-0.5 * 16.0 * (x - y) * (x - y) / s / s);
-}
+    printf("\n=== Test 5: known-L  n=%d ===\n", n);
 
-static void fill_corr(double *c, int n)
-{
-    for (int i = 0; i < n; i++) {
-        for (int j = 0; j < n; j++)
-            c[(size_t)i*n + j] = corr(i, j, n);
-        c[(size_t)i*n + i] = 1.0;
+    double *L_ref = malloc((size_t)n*n*sizeof(double));
+    double *A     = malloc((size_t)n*n*sizeof(double));
+    double *fact  = malloc((size_t)n*n*sizeof(double));
+    if (!L_ref || !A || !fact) {
+        printf("  SKIP n=%d (malloc failed)\n", n);
+        free(L_ref); free(A); free(fact); return;
     }
+
+    fill_known_L(L_ref, n);
+    form_A(A, L_ref, n);
+    memcpy(fact, A, (size_t)n*n*sizeof(double));
+    double t = mphil_dis_cholesky(fact, n);
+
+    char pfx[64], lbl[128];
+    snprintf(pfx, sizeof(pfx), "n=%d", n);
+    snprintf(lbl, sizeof(lbl), "elapsed>=0 n=%d", n);
+    check(lbl, t >= 0.0);
+    check_all_metrics(pfx, A, fact, L_ref, n, NAN);
+
+    free(L_ref); free(A); free(fact);
 }
 
-/* ------------------------------------------------------------------ */
-/* Test 5 — L*L^T reconstruction + log-det vs numpy reference          */
-/*                                                                     */
-/* Reference values (numpy.linalg.cholesky on identical matrix):       */
-/*   n=5:   log|C| = -4.0350755083                                     */
-/*   n=50:  log|C| = -196.1047097521                                   */
-/*   n=200: log|C| = -877.1028093966                                   */
-/*   n=500: log|C| = -2253.0856... (computed below at runtime)         */
-/*                                                                     */
-/* The reconstruction check verifies that C - L*L^T is zero to        */
-/* TOL_RECON in the max-norm, using the lower triangle of the output.  */
-/* The upper triangle symmetry check verifies c[i*n+j]==c[j*n+i].     */
-/* ------------------------------------------------------------------ */
+/* ================================================================== */
+/* Test 6 — numerically stressed diagonal SPD                          */
+/* ================================================================== */
+static void test_stressed(int n)
+{
+    printf("\n=== Test 6: stressed diagonal  n=%d  diag 1..1e-12 ===\n", n);
 
-/* Reference log|C| values from numpy for the corr() matrix. */
-static const struct { int n; double logdet_ref; } LOGDET_REF[] = {
-    {   5, -4.0350755083  },
+    double *L_ref = malloc((size_t)n*n*sizeof(double));
+    double *A     = malloc((size_t)n*n*sizeof(double));
+    double *fact  = malloc((size_t)n*n*sizeof(double));
+    if (!L_ref || !A || !fact) {
+        printf("  SKIP n=%d (malloc failed)\n", n);
+        free(L_ref); free(A); free(fact); return;
+    }
+
+    fill_stressed_L(L_ref, n);
+    form_A(A, L_ref, n);           /* diagonal: A[i,i] = L_ref[i,i]^2 */
+    memcpy(fact, A, (size_t)n*n*sizeof(double));
+    mphil_dis_cholesky(fact, n);
+
+    char pfx[64];
+    snprintf(pfx, sizeof(pfx), "stressed n=%d", n);
+    /* logdet_ref derived automatically from L_ref by check_all_metrics */
+    check_all_metrics(pfx, A, fact, L_ref, n, NAN);
+
+    free(L_ref); free(A); free(fact);
+}
+
+/* ================================================================== */
+/* Test 7 — corr() reconstruction + numpy logdet reference             */
+/* ================================================================== */
+static const struct { int n; double logdet_ref; } CORR_LOGDET[] = {
     {  50, -196.1047097521 },
     { 200, -877.1028093966 },
+    /* n=500: no precomputed reference; INFO line printed instead */
 };
-static const int N_LOGDET_REF = (int)(sizeof(LOGDET_REF) / sizeof(LOGDET_REF[0]));
+static const int N_CORR = (int)(sizeof(CORR_LOGDET)/sizeof(CORR_LOGDET[0]));
 
-static void test_reconstruction(int n)
+static void test_corr(int n)
 {
-    printf("\n=== Test 5: reconstruction n=%d ===\n", n);
+    printf("\n=== Test 7: corr()  n=%d ===\n", n);
 
-    double *orig = malloc((size_t)n * n * sizeof(double));
-    double *fact = malloc((size_t)n * n * sizeof(double));
+    double *orig = malloc((size_t)n*n*sizeof(double));
+    double *fact = malloc((size_t)n*n*sizeof(double));
     if (!orig || !fact) {
-        printf("  SKIP (malloc failed for n=%d)\n", n);
-        free(orig); free(fact);
-        return;
+        printf("  SKIP n=%d (malloc failed)\n", n);
+        free(orig); free(fact); return;
     }
 
     fill_corr(orig, n);
-    memcpy(fact, orig, (size_t)n * n * sizeof(double));
-
+    memcpy(fact, orig, (size_t)n*n*sizeof(double));
     double t = mphil_dis_cholesky(fact, n);
 
-    char label[128];
+    char lbl[64], pfx[64];
+    snprintf(lbl, sizeof(lbl), "elapsed>=0 n=%d", n);
+    check(lbl, t >= 0.0);
 
-    /* --- (a) elapsed time is non-negative (may round to 0 for tiny n) --- */
-    check("elapsed time >= 0", t >= 0.0);
+    double logdet_ref = NAN;
+    for (int r = 0; r < N_CORR; r++)
+        if (CORR_LOGDET[r].n == n) { logdet_ref = CORR_LOGDET[r].logdet_ref; break; }
 
-    /* --- (b) L*L^T reconstruction error in max-norm --- */
-    double max_err = 0.0;
-    for (int i = 0; i < n; i++) {
-        for (int j = 0; j < n; j++) {
-            /* Reconstruct C[i,j] = sum_{k=0}^{min(i,j)} L[i,k]*L[j,k]
-             * using lower triangle of fact (fact[r*n+c] for r >= c). */
-            double sum = 0.0;
-            int kmax = (i < j) ? i : j;
-            for (int k = 0; k <= kmax; k++)
-                sum += fact[(size_t)i*n + k] * fact[(size_t)j*n + k];
-            double e = fabs(sum - orig[(size_t)i*n + j]);
-            if (e > max_err) max_err = e;
-        }
-    }
-    snprintf(label, sizeof(label),
-             "max|L*L^T - C| < %.0e  (got %.2e)", TOL_RECON, max_err);
-    check(label, max_err < TOL_RECON);
+    snprintf(pfx, sizeof(pfx), "corr n=%d", n);
+    check_all_metrics(pfx, orig, fact, NULL, n, logdet_ref);
 
-    /* --- (c) upper triangle equals transposed lower triangle --- */
-    double max_sym_err = 0.0;
-    for (int i = 0; i < n; i++)
-        for (int j = i + 1; j < n; j++) {
-            double e = fabs(fact[(size_t)i*n + j] - fact[(size_t)j*n + i]);
-            if (e > max_sym_err) max_sym_err = e;
-        }
-    snprintf(label, sizeof(label),
-             "upper == lower^T  (max diff %.2e)", max_sym_err);
-    check(label, max_sym_err < TOL_EXACT);
-
-    /* --- (d) log|C| = 2 * sum(log(L_ii)) vs numpy reference --- */
-    double logdet = 0.0;
-    for (int p = 0; p < n; p++)
-        logdet += log(fact[(size_t)p*n + p]);
-    logdet *= 2.0;
-
-    /* Look up the reference value if we have one for this n. */
-    int found = 0;
-    for (int r = 0; r < N_LOGDET_REF; r++) {
-        if (LOGDET_REF[r].n == n) {
-            double ref = LOGDET_REF[r].logdet_ref;
-            double diff = fabs(logdet - ref);
-            snprintf(label, sizeof(label),
-                     "log|C|=%.6f  ref=%.6f  diff=%.2e < %.0e",
-                     logdet, ref, diff, TOL_LOGDET);
-            check(label, diff < TOL_LOGDET);
-            found = 1;
-            break;
-        }
-    }
-    if (!found) {
-        /* For sizes without a precomputed reference, just print the value. */
-        printf("  INFO  n=%d  log|C|=%.10f  (no reference; verify manually)\n",
-               n, logdet);
-    }
-
-    free(orig);
-    free(fact);
+    free(orig); free(fact);
 }
 
-/* ------------------------------------------------------------------ */
-/* Test 6 — explicit log-det check for 2x2 and 3x3 using the formula  */
-/*          from the coursework brief: log|C| = 2*sum(log(L_pp))      */
-/* (These are already covered in tests 1/2 but explicitly labelled     */
-/*  here for clarity in the output.)                                   */
-/* ------------------------------------------------------------------ */
-static void test_logdet_formula(void)
-{
-    printf("\n=== Test 6: log-det formula (brief Eq.4) ===\n");
-
-    /* 2x2: log|C| = log(100) */
-    {
-        double c[4] = {4.0, 2.0, 2.0, 26.0};
-        mphil_dis_cholesky(c, 2);
-        double logdet = 2.0 * (log(c[0*2+0]) + log(c[1*2+1]));
-        check("2x2: 2*sum(log L_pp) = log(100)",
-              fabs(logdet - log(100.0)) < TOL_EXACT);
-    }
-
-    /* 3x3: log|C| = log(16) */
-    {
-        double c[9] = {4.0,2.0,2.0, 2.0,3.0,1.0, 2.0,1.0,3.0};
-        mphil_dis_cholesky(c, 3);
-        double logdet = 2.0*(log(c[0*3+0]) + log(c[1*3+1]) + log(c[2*3+2]));
-        check("3x3: 2*sum(log L_pp) = log(16)",
-              fabs(logdet - log(16.0)) < TOL_EXACT);
-    }
-}
-
-/* ------------------------------------------------------------------ */
-/* Test 7 — block-boundary sizes around NB                            */
-/*                                                                     */
-/* A blocked kernel must handle n < NB (single partial panel), n = NB */
-/* (exactly one full panel), n = NB+1 (one full + one partial panel), */
-/* n = 2*NB (exactly two full panels), and n = 2*NB+1 (two full +    */
-/* one-element remainder).  Each is verified by full reconstruction.  */
-/* ------------------------------------------------------------------ */
-static void test_block_boundaries(void)
-{
-    printf("\n=== Test 7: block-boundary sizes (NB=%d) ===\n", BLOCK_NB);
-    int sizes[] = {
-        BLOCK_NB - 1,   /* single partial panel */
-        BLOCK_NB,       /* exactly one full panel */
-        BLOCK_NB + 1,   /* one full panel + one-element remainder */
-        2 * BLOCK_NB,   /* exactly two full panels */
-        2 * BLOCK_NB + 1/* two full panels + one-element remainder */
-    };
-    int nsizes = (int)(sizeof(sizes) / sizeof(sizes[0]));
-
-    for (int s = 0; s < nsizes; s++) {
-        int n = sizes[s];
-        double *orig = malloc((size_t)n * n * sizeof(double));
-        double *fact = malloc((size_t)n * n * sizeof(double));
-        if (!orig || !fact) {
-            printf("  SKIP n=%d (malloc failed)\n", n);
-            free(orig); free(fact);
-            continue;
-        }
-
-        fill_corr(orig, n);
-        memcpy(fact, orig, (size_t)n * n * sizeof(double));
-        mphil_dis_cholesky(fact, n);
-
-        /* reconstruction */
-        double max_err = 0.0;
-        for (int i = 0; i < n; i++)
-            for (int j = 0; j < n; j++) {
-                double sum = 0.0;
-                int kmax = (i < j) ? i : j;
-                for (int k = 0; k <= kmax; k++)
-                    sum += fact[(size_t)i*n + k] * fact[(size_t)j*n + k];
-                double e = fabs(sum - orig[(size_t)i*n + j]);
-                if (e > max_err) max_err = e;
-            }
-
-        char label[128];
-        snprintf(label, sizeof(label),
-                 "n=%d reconstruction max|LL^T-C|=%.2e < %.0e",
-                 n, max_err, TOL_RECON);
-        check(label, max_err < TOL_RECON);
-
-        /* symmetry */
-        double max_sym = 0.0;
-        for (int i = 0; i < n; i++)
-            for (int j = i + 1; j < n; j++) {
-                double e = fabs(fact[(size_t)i*n + j] - fact[(size_t)j*n + i]);
-                if (e > max_sym) max_sym = e;
-            }
-        snprintf(label, sizeof(label),
-                 "n=%d upper==lower^T  max diff=%.2e", n, max_sym);
-        check(label, max_sym < TOL_EXACT);
-
-        free(orig);
-        free(fact);
-    }
-}
-
-/* ------------------------------------------------------------------ */
+/* ================================================================== */
 /* Test 8 — multi-thread agreement                                     */
-/*                                                                     */
-/* A blocked OpenMP kernel is not fully validated until multiple       */
-/* thread counts all produce the same factorised L within tolerance.  */
-/* Strategy: factorise with 1 thread to get a reference, then repeat  */
-/* with 2, 4, and 8 threads, comparing max|L_t - L_1| < TOL_RECON.   */
-/* Skipped silently if OpenMP is not compiled in.                      */
-/* ------------------------------------------------------------------ */
-static void test_multithread_agreement(int n)
-{
+/* ================================================================== */
 #ifdef _OPENMP
-    printf("\n=== Test 8: multi-thread agreement n=%d ===\n", n);
-
-    double *ref  = malloc((size_t)n * n * sizeof(double));
-    double *work = malloc((size_t)n * n * sizeof(double));
-    if (!ref || !work) {
-        printf("  SKIP n=%d (malloc failed)\n", n);
-        free(ref); free(work);
+/*
+ * Run at `nthreads` threads and compare the lower triangle of the result
+ * against `ref_fact` (computed at 1 thread).  Also call check_all_metrics
+ * so every thread count gets a full residual report.
+ */
+static void check_one_thread_count(int n, int nthreads,
+                                   const double *A_orig, const double *ref_fact)
+{
+    double *work = malloc((size_t)n*n*sizeof(double));
+    if (!work) {
+        printf("  SKIP n=%d nt=%d (malloc failed)\n", n, nthreads);
         return;
     }
 
-    /* Reference: 1 thread */
-    fill_corr(ref, n);
-    omp_set_num_threads(1);
-    mphil_dis_cholesky(ref, n);
+    memcpy(work, A_orig, (size_t)n*n*sizeof(double));
+    omp_set_num_threads(nthreads);
+    mphil_dis_cholesky(work, n);
 
-    int thread_counts[] = {2, 4, 8};
-    int nc = (int)(sizeof(thread_counts) / sizeof(thread_counts[0]));
-    for (int t = 0; t < nc; t++) {
-        int nthreads = thread_counts[t];
-
-        fill_corr(work, n);
-        omp_set_num_threads(nthreads);
-        mphil_dis_cholesky(work, n);
-
-        double max_diff = 0.0;
-        for (int i = 0; i < n * n; i++) {
-            double d = fabs(work[i] - ref[i]);
+    double max_diff = 0.0;
+    for (int i = 0; i < n; i++)
+        for (int j = 0; j <= i; j++) {
+            double d = fabs(work[(size_t)i*n+j] - ref_fact[(size_t)i*n+j]);
             if (d > max_diff) max_diff = d;
         }
 
-        char label[128];
-        snprintf(label, sizeof(label),
-                 "n=%d  %d-thread vs 1-thread  max|diff|=%.2e < %.0e",
-                 n, nthreads, max_diff, TOL_RECON);
-        check(label, max_diff < TOL_RECON);
-    }
+    char lbl[256], pfx[64];
+    snprintf(lbl, sizeof(lbl),
+             "n=%d  nt=%d vs nt=1  max|diff|=%.3e (tol=%.0e)",
+             n, nthreads, max_diff, TOL_THREAD);
+    check(lbl, max_diff < TOL_THREAD);
 
-    free(ref);
+    snprintf(pfx, sizeof(pfx), "n=%d nt=%d", n, nthreads);
+    check_all_metrics(pfx, A_orig, work, NULL, n, NAN);
+
     free(work);
-#else
-    (void)n;
-    printf("\n=== Test 8: multi-thread agreement n=%d SKIPPED (no OpenMP) ===\n", n);
-#endif
 }
 
-/* ------------------------------------------------------------------ */
-/* main                                                                */
-/* ------------------------------------------------------------------ */
+static void run_multithread_tests(void)
+{
+    int sizes[]        = {96, 200, 500};
+    int thread_counts[] = {2, 4, 8, 76};
+    int ns = (int)(sizeof(sizes)/sizeof(sizes[0]));
+    int nc = (int)(sizeof(thread_counts)/sizeof(thread_counts[0]));
+
+    for (int s = 0; s < ns; s++) {
+        int n = sizes[s];
+        printf("\n=== Test 8: multi-thread  n=%d ===\n", n);
+
+        double *L_ref = malloc((size_t)n*n*sizeof(double));
+        double *A     = malloc((size_t)n*n*sizeof(double));
+        double *ref   = malloc((size_t)n*n*sizeof(double));
+        if (!L_ref || !A || !ref) {
+            printf("  SKIP n=%d (malloc failed)\n", n);
+            free(L_ref); free(A); free(ref); continue;
+        }
+
+        fill_known_L(L_ref, n);
+        form_A(A, L_ref, n);
+        free(L_ref);
+
+        /* 1-thread reference */
+        memcpy(ref, A, (size_t)n*n*sizeof(double));
+        omp_set_num_threads(1);
+        mphil_dis_cholesky(ref, n);
+
+        for (int t = 0; t < nc; t++)
+            check_one_thread_count(n, thread_counts[t], A, ref);
+
+        free(A); free(ref);
+    }
+}
+#endif /* _OPENMP */
+
+/* ================================================================== */
+/* main                                                                 */
+/* ================================================================== */
 int main(void)
 {
     printf("=== mphil_dis_cholesky correctness tests ===\n");
-    printf("    TOL_EXACT=%.0e  TOL_RECON=%.0e  TOL_LOGDET=%.0e\n\n",
-           TOL_EXACT, TOL_RECON, TOL_LOGDET);
+    printf("    NB=%d\n", BLOCK_NB);
+    printf("    TOL_EXACT=%.0e  TOL_KNOWN_L=%.0e  TOL_RECON=%.0e"
+           "  TOL_REL_RECON=%.0e  TOL_SYM=%.0e  TOL_LOGDET=%.0e\n\n",
+           TOL_EXACT, TOL_KNOWN_L, TOL_RECON, TOL_REL_RECON, TOL_SYM, TOL_LOGDET);
 
+    /* --- Tests 1-4: fixed small cases and bounds ------------------- */
     test_2x2();
     test_3x3();
     test_n1();
     test_bounds();
-    test_reconstruction(5);
-    test_reconstruction(50);
-    test_reconstruction(200);
-    test_logdet_formula();
-    test_block_boundaries();
-    test_multithread_agreement(200);
-    test_multithread_agreement(500);
+
+    /* --- Test 5: known-L at block-boundary sizes ------------------- */
+    int known_sizes[] = {5, 95, 96, 97, 191, 192, 193, 255, 256, 257};
+    for (int s = 0; s < (int)(sizeof(known_sizes)/sizeof(known_sizes[0])); s++)
+        test_known_L(known_sizes[s]);
+
+    /* --- Test 6: numerically stressed SPD -------------------------- */
+    test_stressed(32);
+    test_stressed(96);
+
+    /* --- Test 7: corr() reconstruction ----------------------------- */
+    test_corr(50);
+    test_corr(200);
+    test_corr(500);
+
+    /* --- Test 8: multi-thread agreement ---------------------------- */
+#ifdef _OPENMP
+    run_multithread_tests();
+#else
+    printf("\n=== Test 8: multi-thread SKIPPED (no OpenMP) ===\n");
+#endif
 
     printf("\n--- %d / %d tests passed ---\n",
            tests_run - tests_failed, tests_run);

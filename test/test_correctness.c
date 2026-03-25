@@ -6,14 +6,16 @@
  *  2. 3x3 hand-computed: every element of lower AND upper triangle + log|C|
  *  3. n=1 edge case: single-element matrix
  *  4. Bounds guard: n=0 and n=100001 must return -1.0
- *  5. L*L^T reconstruction + log-det vs numpy reference (n=5, 50, 200, 500)
- *  6. Upper-triangle layout: verify c[i*n+j] == c[j*n+i] for all i < j
- *  7. Non-negative return value: elapsed time must be >= 0
+ *  5. L*L^T reconstruction + log-det vs numpy reference (n=5, 50, 200)
+ *  6. Log-det formula check (redundant confirmation of tests 1 & 2)
+ *  7. Block-boundary sizes: n=NB-1, NB, NB+1, 2*NB, 2*NB+1 (reconstruction + symmetry)
+ *  8. Multi-thread agreement: 1/2/4/8 threads produce same L to 1e-8 (if OpenMP)
  *
  * Log-det reference values computed with numpy.linalg.cholesky on the
  * same corr() matrix used here (see scripts/plot_results.py / analysis_notes.md).
  *
- * Build:   make test VERSION=v5_openmp_blocked NB=96
+ * Build (performance flags):  make test VERSION=v5_openmp_blocked NB=96
+ * Build (strict, no -ffast-math): make test-strict VERSION=v5_openmp_blocked NB=96
  * Returns: 0 if all tests pass, 1 otherwise.
  */
 
@@ -22,6 +24,14 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#ifdef _OPENMP
+#  include <omp.h>
+#endif
+
+/* Panel width used for block-boundary tests; matches the compiled kernel. */
+#ifndef BLOCK_NB
+#  define BLOCK_NB 96
+#endif
 
 /* Absolute tolerance for direct element comparisons (exact rational results). */
 #define TOL_EXACT   1e-10
@@ -299,6 +309,131 @@ static void test_logdet_formula(void)
 }
 
 /* ------------------------------------------------------------------ */
+/* Test 7 — block-boundary sizes around NB                            */
+/*                                                                     */
+/* A blocked kernel must handle n < NB (single partial panel), n = NB */
+/* (exactly one full panel), n = NB+1 (one full + one partial panel), */
+/* n = 2*NB (exactly two full panels), and n = 2*NB+1 (two full +    */
+/* one-element remainder).  Each is verified by full reconstruction.  */
+/* ------------------------------------------------------------------ */
+static void test_block_boundaries(void)
+{
+    printf("\n=== Test 7: block-boundary sizes (NB=%d) ===\n", BLOCK_NB);
+    int sizes[] = {
+        BLOCK_NB - 1,   /* single partial panel */
+        BLOCK_NB,       /* exactly one full panel */
+        BLOCK_NB + 1,   /* one full panel + one-element remainder */
+        2 * BLOCK_NB,   /* exactly two full panels */
+        2 * BLOCK_NB + 1/* two full panels + one-element remainder */
+    };
+    int nsizes = (int)(sizeof(sizes) / sizeof(sizes[0]));
+
+    for (int s = 0; s < nsizes; s++) {
+        int n = sizes[s];
+        double *orig = malloc((size_t)n * n * sizeof(double));
+        double *fact = malloc((size_t)n * n * sizeof(double));
+        if (!orig || !fact) {
+            printf("  SKIP n=%d (malloc failed)\n", n);
+            free(orig); free(fact);
+            continue;
+        }
+
+        fill_corr(orig, n);
+        memcpy(fact, orig, (size_t)n * n * sizeof(double));
+        mphil_dis_cholesky(fact, n);
+
+        /* reconstruction */
+        double max_err = 0.0;
+        for (int i = 0; i < n; i++)
+            for (int j = 0; j < n; j++) {
+                double sum = 0.0;
+                int kmax = (i < j) ? i : j;
+                for (int k = 0; k <= kmax; k++)
+                    sum += fact[(size_t)i*n + k] * fact[(size_t)j*n + k];
+                double e = fabs(sum - orig[(size_t)i*n + j]);
+                if (e > max_err) max_err = e;
+            }
+
+        char label[128];
+        snprintf(label, sizeof(label),
+                 "n=%d reconstruction max|LL^T-C|=%.2e < %.0e",
+                 n, max_err, TOL_RECON);
+        check(label, max_err < TOL_RECON);
+
+        /* symmetry */
+        double max_sym = 0.0;
+        for (int i = 0; i < n; i++)
+            for (int j = i + 1; j < n; j++) {
+                double e = fabs(fact[(size_t)i*n + j] - fact[(size_t)j*n + i]);
+                if (e > max_sym) max_sym = e;
+            }
+        snprintf(label, sizeof(label),
+                 "n=%d upper==lower^T  max diff=%.2e", n, max_sym);
+        check(label, max_sym < TOL_EXACT);
+
+        free(orig);
+        free(fact);
+    }
+}
+
+/* ------------------------------------------------------------------ */
+/* Test 8 — multi-thread agreement                                     */
+/*                                                                     */
+/* A blocked OpenMP kernel is not fully validated until multiple       */
+/* thread counts all produce the same factorised L within tolerance.  */
+/* Strategy: factorise with 1 thread to get a reference, then repeat  */
+/* with 2, 4, and 8 threads, comparing max|L_t - L_1| < TOL_RECON.   */
+/* Skipped silently if OpenMP is not compiled in.                      */
+/* ------------------------------------------------------------------ */
+static void test_multithread_agreement(int n)
+{
+#ifdef _OPENMP
+    printf("\n=== Test 8: multi-thread agreement n=%d ===\n", n);
+
+    double *ref  = malloc((size_t)n * n * sizeof(double));
+    double *work = malloc((size_t)n * n * sizeof(double));
+    if (!ref || !work) {
+        printf("  SKIP n=%d (malloc failed)\n", n);
+        free(ref); free(work);
+        return;
+    }
+
+    /* Reference: 1 thread */
+    fill_corr(ref, n);
+    omp_set_num_threads(1);
+    mphil_dis_cholesky(ref, n);
+
+    int thread_counts[] = {2, 4, 8};
+    int nc = (int)(sizeof(thread_counts) / sizeof(thread_counts[0]));
+    for (int t = 0; t < nc; t++) {
+        int nthreads = thread_counts[t];
+
+        fill_corr(work, n);
+        omp_set_num_threads(nthreads);
+        mphil_dis_cholesky(work, n);
+
+        double max_diff = 0.0;
+        for (int i = 0; i < n * n; i++) {
+            double d = fabs(work[i] - ref[i]);
+            if (d > max_diff) max_diff = d;
+        }
+
+        char label[128];
+        snprintf(label, sizeof(label),
+                 "n=%d  %d-thread vs 1-thread  max|diff|=%.2e < %.0e",
+                 n, nthreads, max_diff, TOL_RECON);
+        check(label, max_diff < TOL_RECON);
+    }
+
+    free(ref);
+    free(work);
+#else
+    (void)n;
+    printf("\n=== Test 8: multi-thread agreement n=%d SKIPPED (no OpenMP) ===\n", n);
+#endif
+}
+
+/* ------------------------------------------------------------------ */
 /* main                                                                */
 /* ------------------------------------------------------------------ */
 int main(void)
@@ -315,6 +450,9 @@ int main(void)
     test_reconstruction(50);
     test_reconstruction(200);
     test_logdet_formula();
+    test_block_boundaries();
+    test_multithread_agreement(200);
+    test_multithread_agreement(500);
 
     printf("\n--- %d / %d tests passed ---\n",
            tests_run - tests_failed, tests_run);

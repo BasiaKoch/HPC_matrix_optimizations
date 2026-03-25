@@ -56,7 +56,12 @@ EXAMPLE_BIN = example/example
 TEST_BIN    = test/test_correctness
 BENCH_BIN   = test/benchmark
 
-.PHONY: all lib example test bench clean
+# Strict build: same flags as the chosen VERSION but without -ffast-math.
+# Use for correctness validation; -ffast-math can reorder float ops and mask errors.
+STRICT_CFLAGS   = $(BASE_CFLAGS) $(filter-out -ffast-math,$(OPT_FLAGS))
+TEST_STRICT_BIN = test/test_correctness_strict
+
+.PHONY: all lib example test test-strict bench clean
 
 all: lib example $(TEST_BIN) $(BENCH_BIN)
 
@@ -81,11 +86,18 @@ $(TEST_BIN): test/test_correctness.c $(LIB_A)
 test: $(TEST_BIN)
 	./$(TEST_BIN)
 
+# Correctness build without -ffast-math: compiles library and test together in one step.
+$(TEST_STRICT_BIN): test/test_correctness.c $(LIB_SRC) include/mphil_dis_cholesky.h
+	$(CC) $(STRICT_CFLAGS) test/test_correctness.c $(LIB_SRC) $(LDFLAGS) -o $@
+
+test-strict: $(TEST_STRICT_BIN)
+	./$(TEST_STRICT_BIN)
+
 $(BENCH_BIN): test/benchmark.c $(LIB_A)
 	$(CC) $(CFLAGS) $< -Llib -lcholesky $(LDFLAGS) -o $@
 
 bench: $(BENCH_BIN)
 
 clean:
-	rm -f src/*.o $(LIB_A) $(EXAMPLE_BIN) $(TEST_BIN) $(BENCH_BIN)
+	rm -f src/*.o $(LIB_A) $(EXAMPLE_BIN) $(TEST_BIN) $(TEST_STRICT_BIN) $(BENCH_BIN)
 	rm -rf lib/

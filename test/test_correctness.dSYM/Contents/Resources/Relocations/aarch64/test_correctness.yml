@@ -2,21 +2,20 @@
 triple:          'arm64-apple-darwin'
 binary-path:     'test/test_correctness'
 relocations:
-  - { offsetInCU: 0xC3, offset: 0xC3, size: 0x8, addend: 0x0, symName: _check, symObjAddr: 0x0, symBinAddr: 0x10000244C, symSize: 0x94 }
-  - { offsetInCU: 0xBF, offset: 0xBF, size: 0x8, addend: 0x0, symName: _tests_run, symObjAddr: 0x2CB4, symBinAddr: 0x100008000, symSize: 0x0 }
-  - { offsetInCU: 0xD8, offset: 0xD8, size: 0x8, addend: 0x0, symName: _tests_failed, symObjAddr: 0x2CB8, symBinAddr: 0x100008004, symSize: 0x0 }
-  - { offsetInCU: 0x122, offset: 0x122, size: 0x8, addend: 0x0, symName: _LOGDET_REF, symObjAddr: 0x1448, symBinAddr: 0x100003CA8, symSize: 0x0 }
-  - { offsetInCU: 0x13A, offset: 0x13A, size: 0x8, addend: 0x0, symName: _N_LOGDET_REF, symObjAddr: 0x1478, symBinAddr: 0x100003CD8, symSize: 0x0 }
-  - { offsetInCU: 0x14D, offset: 0x14D, size: 0x8, addend: 0x0, symName: _main, symObjAddr: 0xE94, symBinAddr: 0x1000032E0, symSize: 0xD4 }
-  - { offsetInCU: 0x177, offset: 0x177, size: 0x8, addend: 0x0, symName: _test_logdet_formula, symObjAddr: 0xD30, symBinAddr: 0x10000317C, symSize: 0x164 }
-  - { offsetInCU: 0x210, offset: 0x210, size: 0x8, addend: 0x0, symName: _test_reconstruction, symObjAddr: 0x814, symBinAddr: 0x100002C60, symSize: 0x51C }
-  - { offsetInCU: 0x42A, offset: 0x42A, size: 0x8, addend: 0x0, symName: _fill_corr, symObjAddr: 0x730, symBinAddr: 0x100002B7C, symSize: 0xE4 }
-  - { offsetInCU: 0x4A4, offset: 0x4A4, size: 0x8, addend: 0x0, symName: _corr, symObjAddr: 0x6C4, symBinAddr: 0x100002B10, symSize: 0x6C }
-  - { offsetInCU: 0x4F3, offset: 0x4F3, size: 0x8, addend: 0x0, symName: _test_bounds, symObjAddr: 0x5D8, symBinAddr: 0x100002A24, symSize: 0xEC }
-  - { offsetInCU: 0x525, offset: 0x525, size: 0x8, addend: 0x0, symName: _test_n1, symObjAddr: 0x504, symBinAddr: 0x100002950, symSize: 0xD4 }
-  - { offsetInCU: 0x55F, offset: 0x55F, size: 0x8, addend: 0x0, symName: _test_3x3, symObjAddr: 0x230, symBinAddr: 0x10000267C, symSize: 0x2D4 }
-  - { offsetInCU: 0x5B7, offset: 0x5B7, size: 0x8, addend: 0x0, symName: _test_2x2, symObjAddr: 0x94, symBinAddr: 0x1000024E0, symSize: 0x19C }
-  - { offsetInCU: 0x5FC, offset: 0x5FC, size: 0x8, addend: 0x0, symName: _check, symObjAddr: 0x0, symBinAddr: 0x10000244C, symSize: 0x94 }
-  - { offsetInCU: 0xC6, offset: 0x6F2, size: 0x8, addend: 0x0, symName: _mphil_dis_cholesky, symObjAddr: 0x0, symBinAddr: 0x1000033B4, symSize: 0x360 }
-  - { offsetInCU: 0xD3, offset: 0x6FF, size: 0x8, addend: 0x0, symName: _mphil_dis_cholesky, symObjAddr: 0x0, symBinAddr: 0x1000033B4, symSize: 0x360 }
+  - { offset: 0x26, size: 0x8, addend: 0x0, symName: _main, symObjAddr: 0x0, symBinAddr: 0x1000026B4, symSize: 0xF4 }
+  - { offset: 0x65, size: 0x8, addend: 0x0, symName: _LOGDET_REF, symObjAddr: 0x14B0, symBinAddr: 0x100003EF8, symSize: 0x0 }
+  - { offset: 0xAF, size: 0x8, addend: 0x0, symName: _tests_run, symObjAddr: 0x2D20, symBinAddr: 0x100008000, symSize: 0x0 }
+  - { offset: 0xC4, size: 0x8, addend: 0x0, symName: _tests_failed, symObjAddr: 0x2D24, symBinAddr: 0x100008004, symSize: 0x0 }
+  - { offset: 0xD4, size: 0x8, addend: 0x0, symName: _main, symObjAddr: 0x0, symBinAddr: 0x1000026B4, symSize: 0xF4 }
+  - { offset: 0xEE, size: 0x8, addend: 0x0, symName: _test_2x2, symObjAddr: 0xF4, symBinAddr: 0x1000027A8, symSize: 0x1A4 }
+  - { offset: 0x12E, size: 0x8, addend: 0x0, symName: _test_3x3, symObjAddr: 0x298, symBinAddr: 0x10000294C, symSize: 0x278 }
+  - { offset: 0x180, size: 0x8, addend: 0x0, symName: _test_n1, symObjAddr: 0x510, symBinAddr: 0x100002BC4, symSize: 0x100 }
+  - { offset: 0x1B2, size: 0x8, addend: 0x0, symName: _test_bounds, symObjAddr: 0x610, symBinAddr: 0x100002CC4, symSize: 0x108 }
+  - { offset: 0x1D6, size: 0x8, addend: 0x0, symName: _test_reconstruction, symObjAddr: 0x718, symBinAddr: 0x100002DCC, symSize: 0x5D8 }
+  - { offset: 0x3C2, size: 0x8, addend: 0x0, symName: _test_logdet_formula, symObjAddr: 0xCF0, symBinAddr: 0x1000033A4, symSize: 0x190 }
+  - { offset: 0x434, size: 0x8, addend: 0x0, symName: _check, symObjAddr: 0xE80, symBinAddr: 0x100003534, symSize: 0x84 }
+  - { offset: 0x466, size: 0x8, addend: 0x0, symName: _fill_corr, symObjAddr: 0xF04, symBinAddr: 0x1000035B8, symSize: 0xF0 }
+  - { offset: 0x4D0, size: 0x8, addend: 0x0, symName: _corr, symObjAddr: 0xFF4, symBinAddr: 0x1000036A8, symSize: 0x78 }
+  - { offset: 0x579, size: 0x8, addend: 0x0, symName: _mphil_dis_cholesky, symObjAddr: 0x0, symBinAddr: 0x100003720, symSize: 0x2E0 }
+  - { offset: 0x59B, size: 0x8, addend: 0x0, symName: _mphil_dis_cholesky, symObjAddr: 0x0, symBinAddr: 0x100003720, symSize: 0x2E0 }
 ...

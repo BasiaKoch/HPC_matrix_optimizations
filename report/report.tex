@@ -92,12 +92,37 @@ The routine rejects $n < 1$ or $n > 100000$ and returns $-1.0$.
 
 \subsection{Correctness verification}
 
-Correctness is assessed by comparing $\log|C|$ computed via~(\ref{eq:logdet})
-against NumPy reference values for the corr-function test matrices at
-$n \in \{5, 50, 200\}$, with agreement to within $10^{-6}$ relative tolerance.
-The 2$\times$2 example from the coursework brief ($C = \bigl[\begin{smallmatrix}4&2\\2&26\end{smallmatrix}\bigr]$)
-is verified element-by-element.
-All 38 test cases pass (\texttt{make test VERSION=v5\_openmp\_blocked NB=96}).
+Correctness is assessed through four complementary checks implemented in
+\texttt{test/test\_correctness.c}:
+
+\begin{enumerate}
+  \item \textbf{Reconstruction.} For each test matrix $C$, after factorisation
+    the lower triangle $L$ is used to recompute $LL^T$ and the max-norm error
+    $\max_{i,j}|(LL^T)_{ij} - C_{ij}|$ is required to be below $10^{-8}$.
+    Test sizes include small hand-verified cases ($n \in \{2,3,5,50,200\}$)
+    and block-boundary sizes around $\mathrm{NB}=96$: $n \in \{95, 96, 97, 192, 193\}$.
+
+  \item \textbf{Output layout symmetry.} The upper triangle must equal the
+    transposed lower triangle ($c[i \cdot n + j] = c[j \cdot n + i]$ for all
+    $i < j$), verified to $10^{-10}$.
+
+  \item \textbf{Boundary-size rejection.} $n = 0$ and $n = 100001$ must return
+    $-1.0$; $n = 1$ must return a non-negative time and produce
+    $c[0] = \sqrt{c_{\text{input}}}$.
+
+  \item \textbf{Multi-thread agreement.} For $n \in \{200, 500\}$ the factorised
+    $L$ computed with 1, 2, 4, and 8 threads must agree element-wise to $10^{-8}$,
+    verifying absence of data races and schedule-dependent nondeterminism.
+\end{enumerate}
+
+$\log|C| = 2\sum_p \log L_{pp}$ is checked as a secondary cross-check against
+NumPy reference values ($n \in \{5, 50, 200\}$, tolerance $10^{-6}$); it
+is not the primary correctness criterion because it conflates all diagonal errors
+into a single scalar.
+The strict build (\texttt{make test-strict VERSION=v5\_openmp\_blocked NB=96})
+links against a library compiled without \texttt{-ffast-math} to avoid
+floating-point reassociation masking errors; all tests also pass with
+\texttt{-ffast-math} for consistency with the performance build.
 
 % ======================================================================
 \section{Optimisation Strategy}
@@ -300,7 +325,7 @@ Tag & Commit & File at tag & Description \\
 \texttt{v0.3-openmp-v1}  & \texttt{f6b5509} & \texttt{src/cholesky\_v3\_openmp.c} & First OpenMP version: persistent team + trailing-update \texttt{omp for} \\
 \texttt{v0.4-blocked}    & \texttt{de66c37} & \texttt{src/cholesky\_v5\_openmp\_blocked.c} & First blocked OpenMP prototype (NB=128, parallel SYRK only, upper triangle still scratch) \\
 \texttt{v0.5-tuned}      & \texttt{7e70e05} & \texttt{src/cholesky\_v5\_openmp\_blocked.c} & Source state at tag: corrected blocked kernel (lower-triangle fix, explicit lower$\rightarrow$upper copy, split parallel TRSM and SYRK phases); the tagged commit updated benchmark results --- the source corrections appear in preceding commits (see \texttt{git log v0.4-blocked..v0.5-tuned -- src/}) \\
-\texttt{v0.6-cache-opts} & \texttt{614adbf} & \texttt{src/cholesky\_v6\_openmp\_blocked.c} & Adds col-pack, private \texttt{l11}, $j{\times}4$ unroll, \texttt{schedule(static,1)} \\
+\texttt{v0.6-cache-opts} & \texttt{614adbf} & \texttt{src/cholesky\_v5\_openmp\_blocked.c} & Adds col-pack, private \texttt{l11}, $j{\times}4$ unroll, \texttt{schedule(static,1)} (file renamed from \texttt{v6} to \texttt{v5} in the current submission; see note below) \\
 \bottomrule
 \end{tabular}
 \end{center}

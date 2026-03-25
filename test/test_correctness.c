@@ -143,12 +143,16 @@ static void form_A(double *A, const double *L, int n)
  *  fact       - factorized output: lower triangle = L, upper = L^T
  *  L_ref      - reference factor; NULL if unavailable
  *  n          - matrix dimension
- *  logdet_ref - numpy/external reference for logdet, or NAN
- *               (if NAN and L_ref != NULL, derived automatically from L_ref diagonal)
+ *  have_logdet_ref - 1 if logdet_ref is a valid external reference, 0 otherwise
+ *  logdet_ref      - used only when have_logdet_ref=1; otherwise derived from
+ *                    L_ref diagonal (if L_ref != NULL) or printed as INFO
  */
+/* have_logdet_ref=0 means "derive from L_ref if available, else print INFO".
+ * This avoids NaN arithmetic which -ffast-math/-ffinite-math-only breaks. */
 static void check_all_metrics(const char *prefix,
                                const double *A_orig, const double *fact,
-                               const double *L_ref, int n, double logdet_ref)
+                               const double *L_ref, int n,
+                               int have_logdet_ref, double logdet_ref)
 {
     char lbl[320];
 
@@ -218,16 +222,20 @@ static void check_all_metrics(const char *prefix,
         logdet += log(fact[(size_t)i*n+i]);
     logdet *= 2.0;
 
-    /* Derive reference from L_ref if no external reference supplied */
-    double ref = logdet_ref;
-    if (isnan(ref) && L_ref) {
-        ref = 0.0;
+    /* Determine reference: caller may supply one, or we derive from L_ref.
+     * No NaN arithmetic — -ffast-math turns isnan() into a no-op. */
+    double ref      = 0.0;
+    int    have_ref = have_logdet_ref;
+    if (!have_ref && L_ref) {
         for (int i = 0; i < n; i++)
             ref += log(L_ref[(size_t)i*n+i]);
         ref *= 2.0;
+        have_ref = 1;
+    } else if (have_ref) {
+        ref = logdet_ref;
     }
 
-    if (!isnan(ref)) {
+    if (have_ref) {
         double diff = fabs(logdet - ref);
         snprintf(lbl, sizeof(lbl),
                  "%s  |logdet_diff|=%.3e (tol=%.0e)  got=%.6g ref=%.6g",
@@ -327,7 +335,7 @@ static void test_known_L(int n)
     snprintf(pfx, sizeof(pfx), "n=%d", n);
     snprintf(lbl, sizeof(lbl), "elapsed>=0 n=%d", n);
     check(lbl, t >= 0.0);
-    check_all_metrics(pfx, A, fact, L_ref, n, NAN);
+    check_all_metrics(pfx, A, fact, L_ref, n, 0, 0.0);
 
     free(L_ref); free(A); free(fact);
 }
@@ -354,8 +362,8 @@ static void test_stressed(int n)
 
     char pfx[64];
     snprintf(pfx, sizeof(pfx), "stressed n=%d", n);
-    /* logdet_ref derived automatically from L_ref by check_all_metrics */
-    check_all_metrics(pfx, A, fact, L_ref, n, NAN);
+    /* logdet_ref derived automatically from L_ref diagonal by check_all_metrics */
+    check_all_metrics(pfx, A, fact, L_ref, n, 0, 0.0);
 
     free(L_ref); free(A); free(fact);
 }
@@ -389,12 +397,13 @@ static void test_corr(int n)
     snprintf(lbl, sizeof(lbl), "elapsed>=0 n=%d", n);
     check(lbl, t >= 0.0);
 
-    double logdet_ref = NAN;
+    int    have_ref   = 0;
+    double logdet_ref = 0.0;
     for (int r = 0; r < N_CORR; r++)
-        if (CORR_LOGDET[r].n == n) { logdet_ref = CORR_LOGDET[r].logdet_ref; break; }
+        if (CORR_LOGDET[r].n == n) { logdet_ref = CORR_LOGDET[r].logdet_ref; have_ref = 1; break; }
 
     snprintf(pfx, sizeof(pfx), "corr n=%d", n);
-    check_all_metrics(pfx, orig, fact, NULL, n, logdet_ref);
+    check_all_metrics(pfx, orig, fact, NULL, n, have_ref, logdet_ref);
 
     free(orig); free(fact);
 }
@@ -435,7 +444,7 @@ static void check_one_thread_count(int n, int nthreads,
     check(lbl, max_diff < TOL_THREAD);
 
     snprintf(pfx, sizeof(pfx), "n=%d nt=%d", n, nthreads);
-    check_all_metrics(pfx, A_orig, work, NULL, n, NAN);
+    check_all_metrics(pfx, A_orig, work, NULL, n, 0, 0.0);
 
     free(work);
 }

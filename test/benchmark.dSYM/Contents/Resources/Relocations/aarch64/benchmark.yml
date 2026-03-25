@@ -2,9 +2,9 @@
 triple:          'arm64-apple-darwin'
 binary-path:     'test/benchmark'
 relocations:
-  - { offsetInCU: 0x26, offset: 0x26, size: 0x8, addend: 0x0, symName: _main, symObjAddr: 0x0, symBinAddr: 0x100003794, symSize: 0x38C }
-  - { offsetInCU: 0x4F, offset: 0x4F, size: 0x8, addend: 0x0, symName: _main, symObjAddr: 0x0, symBinAddr: 0x100003794, symSize: 0x38C }
-  - { offsetInCU: 0x159, offset: 0x159, size: 0x8, addend: 0x0, symName: _corr, symObjAddr: 0x38C, symBinAddr: 0x100003B20, symSize: 0x6C }
-  - { offsetInCU: 0x26, offset: 0x1E3, size: 0x8, addend: 0x0, symName: _mphil_dis_cholesky, symObjAddr: 0x0, symBinAddr: 0x100003B8C, symSize: 0x300 }
-  - { offsetInCU: 0x48, offset: 0x205, size: 0x8, addend: 0x0, symName: _mphil_dis_cholesky, symObjAddr: 0x0, symBinAddr: 0x100003B8C, symSize: 0x300 }
+  - { offset: 0x26, size: 0x8, addend: 0x0, symName: _main, symObjAddr: 0x0, symBinAddr: 0x100003840, symSize: 0x32C }
+  - { offset: 0x4F, size: 0x8, addend: 0x0, symName: _main, symObjAddr: 0x0, symBinAddr: 0x100003840, symSize: 0x32C }
+  - { offset: 0x149, size: 0x8, addend: 0x0, symName: _corr, symObjAddr: 0x32C, symBinAddr: 0x100003B6C, symSize: 0x78 }
+  - { offset: 0x1C9, size: 0x8, addend: 0x0, symName: _mphil_dis_cholesky, symObjAddr: 0x0, symBinAddr: 0x100003BE4, symSize: 0x2E0 }
+  - { offset: 0x1EB, size: 0x8, addend: 0x0, symName: _mphil_dis_cholesky, symObjAddr: 0x0, symBinAddr: 0x100003BE4, symSize: 0x2E0 }
 ...

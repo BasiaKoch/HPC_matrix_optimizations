@@ -3,6 +3,9 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#ifdef _OPENMP
+#include <omp.h>
+#endif
 
 /* Usage: ./test/benchmark <n> [reps]
  *
@@ -11,8 +14,9 @@
  *
  *   n,threads,rep,time_s,gflops
  *
- * OMP_NUM_THREADS is read from the environment automatically by OpenMP.
  * The matrix is re-filled before each rep so we always time fresh data.
+ * The "threads" column records the actual OpenMP team size seen at runtime
+ * (or 1 for serial builds), rather than just echoing OMP_NUM_THREADS.
  *
  * Example — run and append to results file:
  *   OMP_NUM_THREADS=4 ./test/benchmark 4000 3 >> results/scaling.csv
@@ -38,9 +42,15 @@ int main(int argc, char *argv[])
         return 1;
     }
 
-    /* Read thread count from environment (set by OMP_NUM_THREADS) */
-    const char *omp_threads = getenv("OMP_NUM_THREADS");
-    int threads = omp_threads ? atoi(omp_threads) : 1;
+    /* Query the runtime team size rather than trusting the environment. */
+    int threads = 1;
+#ifdef _OPENMP
+    #pragma omp parallel
+    {
+        #pragma omp single
+        threads = omp_get_num_threads();
+    }
+#endif
 
     double *c = malloc((size_t)n * n * sizeof(double));
     if (!c) { fprintf(stderr, "malloc failed\n"); return 1; }

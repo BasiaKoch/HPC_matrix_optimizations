@@ -128,8 +128,16 @@ sbatch example/submit_csd3.slurm
 
 ```bash
 make test VERSION=v5_openmp_blocked NB=96
+make test-strict VERSION=v5_openmp_blocked NB=96
+sbatch scripts/csd3_correctness.slurm
 ```
 
-Runs seven correctness checks: 2×2 spec example, 3×3 hand-computed example,
-`n=1`, bounds checking, `L Lᵀ` reconstruction, upper-triangle layout, and the
-log-determinant formula.
+`test/test_correctness.c` covers exact 2×2 and 3×3 examples, `n=1`, bounds
+checking, known-`L` reconstruction at block-boundary sizes
+`5, 95, 96, 97, 191, 192, 193, 255, 256, 257`, numerically stressed diagonal
+SPD cases (`n=32, 96`), coursework `corr()` reconstruction (`n=50, 200, 500`),
+and OpenMP thread-agreement checks (`2, 4, 8, 76` threads vs 1 thread).
+
+`make test-strict` runs the same suite without `-ffast-math`. The SLURM script
+`scripts/csd3_correctness.slurm` runs both strict and performance builds across
+the full thread-count set on CSD3 and records the results in `results/`.

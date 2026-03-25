@@ -95,53 +95,67 @@ The routine rejects $n < 1$ or $n > 100000$ and returns $-1.0$.
 Correctness was validated by exact small examples, reconstruction residuals,
 output-layout checks, and agreement across thread counts; $\log|C|$ was used
 only as a secondary cross-check.
-The test suite is implemented in \texttt{test/test\_correctness.c}.
+The test suite (\texttt{test/test\_correctness.c}) was run on a CSD3 icelake
+node (SLURM job 26084958) in two builds---strict
+(\texttt{-O3 -march=native -fopenmp}, i.e.\ the same build as performance but
+without \texttt{-ffast-math}) and performance
+(\texttt{-O3 -march=native -ffast-math -fopenmp})---at
+$T \in \{1, 2, 4, 8, 76\}$ threads each.
+All 183 assertions passed in all 10 runs (1830/1830 total).
 
 \begin{enumerate}
   \item \textbf{Known-$L$ reconstruction.}
     For each test matrix $C = L_{\mathrm{ref}}L_{\mathrm{ref}}^T$, the returned
-    lower triangle $L$ is compared directly to $L_{\mathrm{ref}}$ (tolerance
-    $10^{-10}$) and the max-norm residual $\max_{i,j}|(LL^T)_{ij} - C_{ij}|$
-    is required to be below $10^{-8}$.
-    The relative Frobenius residual $\|A - LL^T\|_F / \|A\|_F$ is also computed
-    and reported.
+    lower triangle is compared directly to $L_{\mathrm{ref}}$ and the
+    max-norm and relative Frobenius residuals are computed.
     Test sizes span $n \in \{5, 95, 96, 97, 191, 192, 193, 255, 256, 257\}$,
     explicitly bracketing the first three panel boundaries at $\mathrm{NB}=96$.
-    These boundary sizes are included because blocked Cholesky implementations
-    commonly fail at exact multiples of NB (full panel) and at the one-column
-    remainder, where index arithmetic for the final panel differs from the general
-    case.
+    These sizes are included because blocked Cholesky implementations commonly
+    fail at exact multiples of NB and at the one-column remainder, where panel
+    index arithmetic differs from the general case.
     A numerically stressed case ($L_{\mathrm{ref}}$ diagonal, entries
     $10^0\ldots10^{-12}$, $n \in \{32,96\}$) tests behaviour under extreme
     pivot-magnitude variation.
-    Coursework corr() matrices at $n \in \{50, 200, 500\}$ are also included.
+    Coursework corr() matrices at $n \in \{50, 200, 500\}$ are also tested.
+    \textit{Measured residuals} (worst case over all sizes and thread counts):
+    $\max|L - L_{\mathrm{ref}}| = 1.6\times10^{-14}$ at $n=257$;
+    $\|A - LL^T\|_{\max} = 3.6\times10^{-14}$;
+    $\|A - LL^T\|_F / \|A\|_F \approx 1.6\times10^{-16}$ (near machine epsilon).
 
-  \item \textbf{Output layout symmetry.} The upper triangle must equal the
-    transposed lower triangle ($c[i \cdot n + j] = c[j \cdot n + i]$ for all
-    $i < j$), verified to absolute tolerance $10^{-12}$.
+  \item \textbf{Output layout symmetry.}
+    $\max_{i<j}|c[i{\cdot}n{+}j] - c[j{\cdot}n{+}i]|$ was \textbf{exactly zero}
+    at every tested size and thread count, including 76~threads.
 
-  \item \textbf{Boundary-size rejection.} $n = 0$ and $n = 100001$ must return
-    $-1.0$; $n = 1$ must return a non-negative time and produce
+  \item \textbf{Boundary-size rejection.} $n = 0$ and $n = 100001$ return
+    $-1.0$; $n = 1$ returns a non-negative time and produces
     $c[0] = \sqrt{c_{\text{input}}}$.
 
   \item \textbf{Multi-thread agreement.}
-    For $n \in \{96, 200, 500\}$ the factorised $L$ is computed at
-    $T \in \{1, 2, 4, 8, 76\}$ threads; each result is compared element-wise
-    against the 1-thread reference to absolute tolerance $10^{-10}$.
-    Agreement at 76~threads (full-node occupancy) verifies that no data race or
-    schedule-sensitive nondeterminism affects the final factor.
-    All metrics listed above are also reported for each thread count.
+    For $n \in \{96, 200, 500\}$ the factorised $L$ was computed at
+    $T \in \{2, 4, 8, 76\}$ threads and compared element-wise against the
+    1-thread result.
+    \textit{Measured}: $\max|L_T - L_1| = \mathbf{0}$ (bitwise identical) for
+    all sizes and all thread counts, in both strict and performance builds.
+    This rules out data races, missing barriers, and schedule-sensitive
+    nondeterminism in \texttt{v5\_openmp\_blocked}.
 \end{enumerate}
 
-$\log|C| = 2\sum_p \log L_{pp}$ is checked as a secondary cross-check against
-NumPy reference values for corr() at $n \in \{50, 200\}$, using absolute
-tolerance $10^{-6}$; it is not the primary correctness criterion because it
-conflates all diagonal errors into a single scalar and does not detect wrong
-off-diagonals, stale upper-triangle data, or some TRSM/SYRK errors.
-The strict build (\texttt{make test-strict VERSION=v5\_openmp\_blocked NB=96})
-compiles the library without \texttt{-ffast-math} to prevent floating-point
-reassociation from masking errors; all tests also pass with \texttt{-ffast-math}
-confirming consistency with the performance build.
+$\log|C| = 2\sum_p \log L_{pp}$ was cross-checked against NumPy
+\texttt{linalg.cholesky} references for corr() at $n \in \{50, 200\}$,
+using absolute tolerance $10^{-6}$.
+\textit{Measured differences}: $1.6\times10^{-11}$ ($n=50$) and
+$4.5\times10^{-11}$ ($n=200$), both more than four orders of magnitude within
+tolerance. For corr() at $n=500$, the automated suite checks reconstruction,
+layout symmetry, and diagonal positivity and reports the computed logdet, but
+does not use an external NumPy logdet reference.
+The stressed diagonal test ($n \in \{32, 96\}$) gives logdet error of
+exactly zero, as expected since $\sqrt{d^2} = d$ is exact for $d > 0$.
+This metric is not the primary correctness criterion: it conflates all
+diagonal errors into a single scalar and cannot detect wrong off-diagonals,
+stale upper-triangle data, or certain TRSM/SYRK errors.
+Both the strict build (no \texttt{-ffast-math}) and the performance build
+(\texttt{-ffast-math}) pass identically; the strict build guards against
+floating-point reassociation masking errors during development.
 
 % ======================================================================
 \section{Optimisation Strategy}

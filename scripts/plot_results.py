@@ -94,7 +94,7 @@ serial_agg  = reduce(serial,  ["version", "n", "threads"])
 scaling_agg = reduce(scaling, ["version", "n", "threads"])
 
 # ==================================================================
-# Fig 1 — Serial GFLOPS comparison
+# Serial GFLOP/s comparison
 # ==================================================================
 def fig1():
     vers  = ["v1_baseline", "v2_serial_opt"]
@@ -122,7 +122,7 @@ def fig1():
     ax.set_xticks(x)
     ax.set_xticklabels([f"n={n}" for n in ns])
     ax.set_ylabel("Performance (GFLOP/s)")
-    ax.set_title("Fig 1 — Serial optimisation: GFLOP/s comparison\n"
+    ax.set_title("Serial GFLOP/s comparison\n"
                  "(CSD3 icelake, 1 thread, 3 reps, error bars = ±1 SD)")
     ax.legend()
     fig.tight_layout()
@@ -132,7 +132,7 @@ def fig1():
     print(f"Saved {path}")
 
 # ==================================================================
-# Fig 2 — Strong scaling: GFLOPS vs threads (one subplot per n)
+# Strong scaling: GFLOP/s vs threads (one subplot per n)
 # ==================================================================
 def fig2():
     ns   = sorted(scaling_agg["n"].unique())
@@ -156,7 +156,7 @@ def fig2():
     axes[0].set_ylabel("Performance (GFLOP/s)")
     handles, labels = axes[0].get_legend_handles_labels()
     fig.legend(handles, labels, loc="upper left", bbox_to_anchor=(0.01, 0.99))
-    fig.suptitle("Fig 2 — Strong scaling: GFLOP/s vs thread count\n"
+    fig.suptitle("Strong scaling: GFLOP/s vs thread count\n"
                  "(CSD3 icelake, v3_openmp vs v4_blocked_NB96 vs v5_blocked_NB96, error bars = ±1 SD over available reps)",
                  y=1.02, fontsize=10)
     fig.tight_layout()
@@ -166,7 +166,7 @@ def fig2():
     print(f"Saved {path}")
 
 # ==================================================================
-# Fig 3 — Strong scaling: speedup vs threads
+# Strong scaling: speedup vs threads
 # ==================================================================
 def fig3():
     ns   = sorted(scaling_agg["n"].unique())
@@ -183,7 +183,7 @@ def fig3():
             d = scaling_agg[(scaling_agg["version"] == v) &
                             (scaling_agg["n"] == n)].sort_values("threads")
             d1 = d[d["threads"] == 1]
-            if d1.empty:   # version not benchmarked at this n (e.g. v3 at n=8000)
+            if d1.empty:   # skip any version lacking a 1-thread baseline at this n
                 continue
             t1 = float(d1["time_mean"].iloc[0])
             speedup = t1 / d["time_mean"].values
@@ -203,7 +203,7 @@ def fig3():
     axes[0].set_ylabel("Speedup (T₁ / Tₚ)")
     handles, labels = axes[0].get_legend_handles_labels()
     fig.legend(handles, labels, loc="upper left", bbox_to_anchor=(0.01, 0.99))
-    fig.suptitle("Fig 3 — Strong scaling: speedup vs thread count\n"
+    fig.suptitle("Strong scaling: speedup vs thread count\n"
                  "(CSD3 icelake, v3_openmp vs v4_blocked_NB96 vs v5_blocked_NB96)",
                  y=1.02, fontsize=10)
     fig.tight_layout()
@@ -213,7 +213,7 @@ def fig3():
     print(f"Saved {path}")
 
 # ==================================================================
-# Fig 4 — Strong scaling: parallel efficiency vs threads
+# Strong scaling: parallel efficiency vs threads
 # ==================================================================
 def fig4():
     ns   = sorted(scaling_agg["n"].unique())
@@ -226,7 +226,7 @@ def fig4():
             d = scaling_agg[(scaling_agg["version"] == v) &
                             (scaling_agg["n"] == n)].sort_values("threads")
             d1 = d[d["threads"] == 1]
-            if d1.empty:   # version not benchmarked at this n (e.g. v3 at n=8000)
+            if d1.empty:   # skip any version lacking a 1-thread baseline at this n
                 continue
             t1 = float(d1["time_mean"].iloc[0])
             eff = t1 / (d["time_mean"].values * d["threads"].values)
@@ -245,7 +245,7 @@ def fig4():
     axes[0].set_ylabel("Parallel efficiency (speedup / threads)")
     handles, labels = axes[0].get_legend_handles_labels()
     fig.legend(handles, labels, loc="upper right", bbox_to_anchor=(0.99, 0.99))
-    fig.suptitle("Fig 4 — Strong scaling: parallel efficiency vs thread count\n"
+    fig.suptitle("Strong scaling: parallel efficiency vs thread count\n"
                  "(CSD3 icelake, v3_openmp vs v4_blocked_NB96 vs v5_blocked_NB96)",
                  y=1.02, fontsize=10)
     fig.tight_layout()
@@ -255,7 +255,7 @@ def fig4():
     print(f"Saved {path}")
 
 # ==================================================================
-# Fig 5 — GFLOPS vs problem size n (v5 tuned blocked version, selected thread counts)
+# GFLOP/s vs problem size n (v5 tuned blocked version, selected thread counts)
 # ==================================================================
 def fig5():
     v = "v5_blocked_NB96"
@@ -272,8 +272,8 @@ def fig5():
 
     ax.set_xlabel("Matrix dimension n")
     ax.set_ylabel("Performance (GFLOP/s)")
-    ax.set_title("Fig 5 — GFLOP/s vs problem size (v5 panel-blocked + cache opts, NB=96)\n"
-                 "(CSD3 icelake, error bars = ±1 SD over available reps)")
+    ax.set_title("GFLOP/s vs problem size\n"
+                 "(v5 panel-blocked + cache opts, NB=96; CSD3 icelake, error bars = ±1 SD over available reps)")
     ax.legend()
     fig.tight_layout()
     path = os.path.join(FIG_DIR, "fig5_problem_size.pdf")
@@ -282,7 +282,7 @@ def fig5():
     print(f"Saved {path}")
 
 # ==================================================================
-# Fig 6 — v3 vs v4 vs v5 head-to-head at n=8000
+# v3 vs v4 vs v5 head-to-head at n=8000
 # ==================================================================
 def fig6():
     n    = 8000
@@ -338,10 +338,10 @@ def fig6():
                  transform=ax1.transAxes, fontsize=8, color="#555555")
         ax2.text(0.03, 0.03, "v3_openmp not benchmarked at n=8000",
                  transform=ax2.transAxes, fontsize=8, color="#555555")
-        fig.suptitle(f"Fig 6 — v4/v5 head-to-head at n={n}\n"
+        fig.suptitle(f"Head-to-head at n={n}\n"
                      "(v3 unavailable at this size; CSD3 icelake, mean ±1 SD over available reps)", fontsize=10)
     else:
-        fig.suptitle(f"Fig 6 — v3 (flat parallel) vs v4/v5 (panel-blocked) at n={n}\n"
+        fig.suptitle(f"Head-to-head at n={n}\n"
                      "(CSD3 icelake, mean ±1 SD over available reps)", fontsize=10)
     fig.tight_layout()
     path = os.path.join(FIG_DIR, "fig6_v3_v4_v5_n8000.pdf")
@@ -350,7 +350,7 @@ def fig6():
     print(f"Saved {path}")
 
 # ==================================================================
-# Fig 7 — Wall-clock time vs n (serial comparison)
+# Wall-clock time vs n (serial comparison)
 # ==================================================================
 def fig7():
     vers = ["v1_baseline", "v2_serial_opt"]
@@ -375,7 +375,7 @@ def fig7():
     ax.set_ylabel("Wall-clock time (s)")
     ax.set_xscale("log")
     ax.set_yscale("log")
-    ax.set_title("Fig 7 — Serial wall-clock time vs n\n"
+    ax.set_title("Serial wall-clock time vs n\n"
                  "(CSD3 icelake, 1 thread, 3 reps, error bars = ±1 SD)")
     ax.legend()
     fig.tight_layout()
@@ -385,7 +385,7 @@ def fig7():
     print(f"Saved {path}")
 
 # ==================================================================
-# Fig 9 — Incremental optimisation: GFLOPS per version at 1 thread
+# Incremental optimisation: GFLOP/s per version at 1 thread
 # Combines serial CSV (v1, v2) with scaling CSV (v3, v4, v5 at 1T).
 # Shows the performance gain from each individual optimisation step.
 # ==================================================================
@@ -445,8 +445,8 @@ def fig9():
     ax.set_xticklabels(labels, fontsize=9)
     ax.set_ylabel("Performance (GFLOP/s)")
     ax.set_title(
-        f"Fig 9 — Incremental optimisation: single-thread GFLOP/s at n={N_TARGET}\n"
-        f"(versions shown where n={N_TARGET} data exists; CSD3 icelake, 1 thread, error bars = ±1 SD over available reps)"
+        f"Incremental optimisation at n={N_TARGET}\n"
+        f"(single-thread GFLOP/s; CSD3 icelake, error bars = ±1 SD over available reps)"
     )
     ax.grid(True, axis="y", alpha=0.35, linestyle="--", zorder=0)
     ax.set_axisbelow(True)

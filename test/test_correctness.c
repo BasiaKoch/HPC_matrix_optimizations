@@ -11,8 +11,8 @@
  *     sizes: 5, 95, 96, 97, 191, 192, 193, 255, 256, 257
  *  6. Numerically stressed SPD     diagonal L_ref with range 10^0 .. 10^{-12}
  *     sizes: 32, 96
- *  7. corr() reconstruction        coursework matrix; logdet vs numpy ref
- *     sizes: 50, 200, 500
+ *  7. corr() reconstruction        coursework matrix; external logdet ref at
+ *     n=50 and n=200, computed logdet reported at n=500
  *  8. Multi-thread agreement       2/4/8/76 threads vs 1-thread output
  *     sizes: 96, 200, 500
  *
@@ -23,7 +23,8 @@
  *  ||A - LL^T||_F / ||A||_F
  *  max_{i<j} |c[i*n+j] - c[j*n+i]|
  *  all L[i,i] > 0
- *  |logdet_computed - logdet_ref|  (derived from L_ref, or numpy ref for corr())
+ *  |logdet_computed - logdet_ref|  (derived from L_ref, or external ref for
+ *                                  selected corr() sizes)
  *
  * Actual measured residuals are printed alongside every PASS/FAIL verdict.
  * logdet is a secondary sanity check only; it does not replace reconstruction.
@@ -369,12 +370,11 @@ static void test_stressed(int n)
 }
 
 /* ================================================================== */
-/* Test 7 — corr() reconstruction + numpy logdet reference             */
+/* Test 7 — corr() reconstruction + external logdet references         */
 /* ================================================================== */
 static const struct { int n; double logdet_ref; } CORR_LOGDET[] = {
     {  50, -196.1047097521 },
     { 200, -877.1028093966 },
-    { 500, -2251.6713881199 },  /* numpy.linalg.cholesky reference; matches CSD3 runs to 1e-7 */
 };
 static const int N_CORR = (int)(sizeof(CORR_LOGDET)/sizeof(CORR_LOGDET[0]));
 

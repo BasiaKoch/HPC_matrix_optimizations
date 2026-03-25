@@ -109,12 +109,12 @@ if len(thread_values) == 1:
     ax.set_ylabel("Performance (GFLOP/s)")
     if has_version_col:
         ax.set_title(
-            f"Fig 8 — GFLOP/s vs panel width (blocked OpenMP)\n"
+            f"GFLOP/s vs panel width\n"
             f"{version}, n={n}, {threads} threads, CSD3 icelake, {reps} reps"
         )
     else:
         ax.set_title(
-            f"Fig 8 — GFLOP/s vs panel width (blocked OpenMP)\n"
+            f"GFLOP/s vs panel width\n"
             f"n={n}, {threads} threads, CSD3 icelake, {reps} reps"
         )
     ax.set_xticks(block_sizes)
@@ -173,7 +173,7 @@ else:
     ax2.grid(True, alpha=0.35, linestyle="--")
 
     fig.suptitle(
-        f"Fig 8 — Panel-width sweep across thread counts\n"
+        f"Panel-width sweep across thread counts\n"
         f"{version}, n={n}, CSD3 icelake, {reps} reps per (NB, thread) point",
         fontsize=10,
     )

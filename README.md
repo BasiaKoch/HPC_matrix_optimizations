@@ -98,7 +98,7 @@ Measured mean performance in the main scaling dataset on CSD3 icelake
 ## Running Benchmarks on CSD3
 
 ```bash
-# Serial comparison (v1, v2, v3) — submits to icelake INTR queue
+# Serial comparison (v1, v2) — submits to icelake INTR queue
 sbatch scripts/csd3_serial.slurm
 
 # OpenMP strong scaling (v3_openmp vs v4_openmp_blocked vs v5_openmp_blocked, n=2000–8000, 1–76 threads)
@@ -136,7 +136,8 @@ sbatch scripts/csd3_correctness.slurm
 checking, known-`L` reconstruction at block-boundary sizes
 `5, 95, 96, 97, 191, 192, 193, 255, 256, 257`, numerically stressed diagonal
 SPD cases (`n=32, 96`), coursework `corr()` reconstruction (`n=50, 200, 500`),
-and OpenMP thread-agreement checks (`2, 4, 8, 76` threads vs 1 thread).
+external logdet cross-checks for `corr()` at `n=50` and `n=200`, and OpenMP
+thread-agreement checks (`2, 4, 8, 76` threads vs 1 thread).
 
 `make test-strict` runs the same suite without `-ffast-math`. The SLURM script
 `scripts/csd3_correctness.slurm` runs both strict and performance builds across

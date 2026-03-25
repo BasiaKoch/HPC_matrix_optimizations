@@ -28,7 +28,7 @@
 #   Faster Fig. 6 smoke run:
 #     sbatch --export=ALL,STUDY=fig6,THREAD_LIST="1 8 32 76",REPS_V3=2,REPS_BLOCKED=2 scripts/csd3_scaling.slurm
 #
-#   Run a focused study and merge into main scaling CSV (replace overlap by version+n):
+#   Run a focused study and merge into main scaling CSV (replace overlap by version+n+threads):
 #     sbatch --export=ALL,STUDY=v3_n6000_curve,MERGE_INTO_MAIN=1 scripts/csd3_scaling.slurm
 
 # Always run from project root (where Makefile lives)
@@ -55,7 +55,7 @@ REPS_V3=${REPS_V3:-$REPS}               # reps for v3_openmp
 REPS_BLOCKED=${REPS_BLOCKED:-$REPS}     # reps for v4/v5
 THREAD_LIST=${THREAD_LIST:-"1 2 4 8 16 32 48 64 76"}
 MERGE_INTO_MAIN=${MERGE_INTO_MAIN:-0}   # append OUT_CSV rows into results/csd3_scaling.csv
-REPLACE_OVERLAP=${REPLACE_OVERLAP:-1}   # when merging, replace rows with matching (version,n)
+REPLACE_OVERLAP=${REPLACE_OVERLAP:-1}   # when merging, replace rows with matching (version,n,threads)
 
 # Per-version toggles (useful for targeted gap-fill runs)
 RUN_V3=${RUN_V3:-1}
@@ -164,10 +164,10 @@ if [ "$MERGE_INTO_MAIN" = "1" ] && [ "$OUT_CSV" != "results/csd3_scaling.csv" ];
             cp "$OUT_CSV" results/csd3_scaling.csv
         else
             TMP_MERGE=$(mktemp)
-            # Keep existing rows that do NOT overlap (by version,n) with new rows.
-            awk -F, 'NR==FNR { if (FNR>1) keys[$1 FS $2]=1; next }
+            # Keep existing rows that do NOT overlap (by version,n,threads) with new rows.
+            awk -F, 'NR==FNR { if (FNR>1) keys[$1 FS $2 FS $3]=1; next }
                      FNR==1 { print; next }
-                     !($1 FS $2 in keys)' \
+                     !($1 FS $2 FS $3 in keys)' \
                 "$OUT_CSV" results/csd3_scaling.csv > "$TMP_MERGE"
             # Append new rows (without header).
             tail -n +2 "$OUT_CSV" >> "$TMP_MERGE"

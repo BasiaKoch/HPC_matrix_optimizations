@@ -432,6 +432,12 @@ counts (84 at NB$=96$ versus 32 at NB$=256$) outweigh the extra cache pressure.
 At 76~threads the curve flattens, and NB$=96$ has the highest mean throughput
 (187.8~GFLOP/s) with NB$=256$ only 0.5\% lower, suggesting a broad optimum near
 the full-node operating point used in the rest of the study.
+(The dedicated NB-sweep run reported 187.8~GFLOP/s at 76~threads; the main
+scaling study, run in a separate SLURM job, reports 182.7~GFLOP/s for the same
+configuration.
+The $\approx$3\% difference is within the observed run-to-run variation and
+does not affect any version ranking or conclusion.
+The main scaling study figure is used as the canonical value throughout.)
 
 \begin{figure}[h]
   \centering

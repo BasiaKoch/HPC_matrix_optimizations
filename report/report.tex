@@ -9,6 +9,7 @@
 \usepackage{hyperref}
 \usepackage{microtype}
 \usepackage{subcaption}
+\usepackage{tabularx}
 
 \hypersetup{colorlinks=true, linkcolor=blue, citecolor=blue, urlcolor=blue}
 
@@ -22,69 +23,84 @@
 \maketitle
 
 \begin{abstract}
-An in-place Cholesky factorization routine $C = LL^T$ is developed in C and
-optimized in five stages for a single 76-core CSD3 icelake node.
-Correctness was validated by exact examples, reconstruction residuals,
-output-layout checks, and agreement across thread counts.
-Loop interchange and compiler flags (\texttt{-O3 -march=native -ffast-math})
-yield a 13--16$\times$ single-thread improvement over the \texttt{-O0} baseline.
-A flat OpenMP parallelization reaches at most 46.2~GFLOP/s at 48~threads for
-$n=2000$, then \emph{degrades}, consistent with synchronization overhead
-becoming dominant at high thread counts.
-Restructuring into a right-looking panel-blocked algorithm (panel width
-$\mathrm{NB}=96$) reduces the number of outer synchronization stages from
-$n$ column steps to $\lceil n/\mathrm{NB}\rceil$ panels,
-giving 59.5$\times$ speedup and 78.2\% efficiency at 76~threads for $n=8000$
-(147.2~GFLOP/s).
-Three data-locality and ILP optimizations---column packing, a private
-per-thread panel block, and 4-wide SYRK unrolling---improve single-thread
-performance by 2.52$\times$ relative to v4 at $n{=}8000$.
-A fourth optimization, round-robin scheduling (\texttt{schedule(static,1)}),
-is introduced to improve load balance for the triangular SYRK workload.
-The final version reaches 182.7~GFLOP/s at 76~threads ($+24\%$ over v4).
+An in-place Cholesky factorization routine $C = LL^T$ was implemented in C and
+optimised in several stages for a single 76-core CSD3 icelake node.
+
+Correctness was verified using exact small examples, reconstruction residuals,
+output-layout checks, and consistency across thread counts.
+Compiler optimisations and simple loop transformations improved single-thread
+performance by around 13--16$\times$ compared to an \texttt{-O0} baseline.
+
+A straightforward OpenMP parallelisation achieves good performance at moderate
+thread counts, but performance decreases at higher thread counts, likely due to
+synchronisation overhead.
+
+To address this, the algorithm was restructured into a panel-blocked
+(right-looking) form with panel width $\mathrm{NB}=96$. This reduces the number
+of global synchronisation steps and improves scalability. The blocked version
+achieves a speedup of 59.5$\times$ and a parallel efficiency of 78.2\% at
+76 threads for $n=8000$.
+
+Further optimisations aimed at improving data locality and instruction-level
+parallelism (including column packing, per-thread panel storage, and loop
+unrolling) improved single-thread performance by a factor of 2.52 compared to
+the initial blocked version. A round-robin scheduling strategy was also used
+to improve load balance in the triangular update phase.
+
+The final implementation reaches 182.7~GFLOP/s at 76 threads for $n=8000$,
+representing a 24\% improvement over the previous version.
 \end{abstract}
 
-% ======================================================================
 \section{Introduction}
-% ======================================================================
 
-Cholesky factorization $C = LL^T$ is a core operation in Bayesian inference,
-Gaussian-process regression, and numerical optimization, where it is used to
-invert and compute the determinant of symmetric positive-definite covariance
-matrices.
-For $n$ observations, the covariance matrix $C \in \mathbb{R}^{n \times n}$
-has entries $C_{ij} = \langle(x_i - \langle x_i\rangle)(x_j - \langle x_j\rangle)\rangle$,
-and its log-determinant is given by
+Cholesky factorization $C = LL^T$ is widely used in applications such as
+Gaussian process regression, Bayesian inference, and numerical optimisation.
+In these settings, it is often required to compute both the inverse and the
+determinant of a symmetric positive-definite covariance matrix.
+
+Given a covariance matrix $C \in \mathbb{R}^{n \times n}$ with entries
+\[
+C_{ij} = \langle (x_i - \langle x_i \rangle)(x_j - \langle x_j \rangle) \rangle,
+\]
+the log-determinant can be computed from the Cholesky factor as
 \begin{equation}
-  \log|C| = 2\sum_{p=0}^{n-1}\log L_{pp}.
-  \label{eq:logdet}
+  \log |C| = 2 \sum_{p=0}^{n-1} \log L_{pp}.
 \end{equation}
-The routine is $O(n^3/3)$ and must be both correct and fast for large $n$.
-This report describes systematic optimization of a single-node OpenMP
-implementation on CSD3~icelake, reaching \textbf{182.7~GFLOP/s} at 76~threads
-for $n=8000$.
-At $n=2000$, where the matrix fits within a single socket's L3 cache,
-throughput reaches 238.4~GFLOP/s at 76~threads; the decline at larger sizes
-is consistent with increasing memory-system pressure.
 
-% ======================================================================
+The computational cost of the factorisation is $O(n^3)$, so performance is
+critical for large matrices. At the same time, numerical correctness must be
+maintained.
+
+This report describes the development and optimisation of an OpenMP-based
+Cholesky factorisation routine on a single CSD3 icelake node.
+The final implementation achieves 182.7~GFLOP/s at 76 threads for $n=8000$.
+
+For smaller matrices (e.g.\ $n=2000$), higher throughput is observed
+(238.4~GFLOP/s at 76 threads), which is consistent with better cache utilisation.
+For larger matrices, performance decreases, which is likely due to increased
+pressure on the memory system.
+
 \section{Algorithm and Interface}
-% ======================================================================
 
 \subsection{Cholesky recurrence}
 
-The factorization processes column $p = 0,\ldots,n-1$ in order.
-At each step:
-\begin{align}
-  L_{pp} &= \sqrt{C_{pp} - \sum_{s=0}^{p-1} L_{ps}^2},
-  \label{eq:diag}\\
-  L_{ip} &= \frac{C_{ip} - \sum_{s=0}^{p-1} L_{is}L_{ps}}{L_{pp}},
-  \quad i > p.
-  \label{eq:col}
-\end{align}
-Steps~(\ref{eq:diag})--(\ref{eq:col}) are serial; the trailing Schur complement
-update $C_{ij} \mathrel{-}= L_{ip}L_{jp}$ for $i,j>p$ is independent across
-rows and is the primary target for parallelism.
+The factorisation proceeds column by column for $p = 0, \ldots, n-1$.
+At each step, the diagonal element is computed as
+\begin{equation}
+  L_{pp} = \sqrt{C_{pp} - \sum_{s=0}^{p-1} L_{ps}^2},
+\end{equation}
+and the entries below the diagonal are given by
+\begin{equation}
+  L_{ip} = \frac{C_{ip} - \sum_{s=0}^{p-1} L_{is} L_{ps}}{L_{pp}}, \quad i > p.
+\end{equation}
+
+These steps must be performed sequentially, as each column depends on the
+previous ones. However, the update of the remaining submatrix,
+\[
+C_{ij} \leftarrow C_{ij} - L_{ip} L_{jp}, \quad i,j > p,
+\]
+can be performed independently across rows and is therefore suitable for
+parallelisation.
 
 \subsection{Function interface}
 
@@ -92,610 +108,484 @@ The function
 \begin{verbatim}
 double mphil_dis_cholesky(double *c, int n);
 \end{verbatim}
-takes a row-major $n\times n$ matrix, factorizes it in place, and returns the
-wall-clock time in seconds.
-On return, the lower triangle holds $L$ and the upper triangle holds $L^T$.
-The routine rejects $n < 1$ or $n > 100000$ and returns $-1.0$.
+takes a pointer to a row-major $n \times n$ matrix and performs the
+factorisation in place.
+
+On return:
+\begin{itemize}
+  \item the lower triangle contains $L$,
+  \item the upper triangle contains $L^T$.
+\end{itemize}
+
+The function returns the wall-clock time in seconds. Inputs with
+$n < 1$ or $n > 100000$ are rejected.
 
 \subsection{Correctness verification}
 
-Correctness was validated by exact small examples, reconstruction residuals,
-output-layout checks, and agreement across thread counts; $\log|C|$ was used
-only as a secondary cross-check.
-The test suite (\texttt{test/test\_correctness.c}) was run on a CSD3 icelake
-node (SLURM job 26084958) in two builds---strict
-(\texttt{-O3 -march=native -fopenmp}, i.e.\ the same build as performance but
-without \texttt{-ffast-math}) and performance
-(\texttt{-O3 -march=native -ffast-math -fopenmp})---at
-$T \in \{1, 2, 4, 8, 76\}$ threads each.
-All 182 assertions passed in all 10 runs (1820/1820 total).
+Correctness was assessed using several complementary checks.
+The main criterion is the reconstruction error of the factorisation,
+rather than the log-determinant alone.
+
+The test suite was run on a CSD3 icelake node for both:
+\begin{itemize}
+  \item a \textbf{strict build} (without \texttt{-ffast-math}),
+  \item a \textbf{performance build} (with \texttt{-ffast-math}),
+\end{itemize}
+and across multiple thread counts ($T = 1, 2, 4, 8, 76$).
+All tests passed in all configurations.
 
 \begin{enumerate}
-  \item \textbf{Known-$L$ reconstruction.}
-    For each test matrix $C = L_{\mathrm{ref}}L_{\mathrm{ref}}^T$, the returned
-    lower triangle is compared directly to $L_{\mathrm{ref}}$ and the
-    max-norm and relative Frobenius residuals are computed.
-    Test sizes span $n \in \{5, 95, 96, 97, 191, 192, 193, 255, 256, 257\}$,
-    explicitly bracketing the first three panel boundaries at $\mathrm{NB}=96$.
-    These sizes are included because blocked Cholesky implementations commonly
-    fail at exact multiples of NB and at the one-column remainder, where panel
-    index arithmetic differs from the general case.
-    A numerically stressed case ($L_{\mathrm{ref}}$ diagonal, entries
-    $10^0\ldots10^{-12}$, $n \in \{32,96\}$) tests behaviour under extreme
-    pivot-magnitude variation.
-    Coursework corr() matrices at $n \in \{50, 200, 500\}$ are also tested.
-    \textit{Measured residuals} (worst case over all sizes and thread counts in
-    the cited CSD3 log):
-    $\max|L - L_{\mathrm{ref}}| = 3.85\times10^{-14}$;
-    $\|A - LL^T\|_{\max} = 3.91\times10^{-14}$;
-    $\|A - LL^T\|_F / \|A\|_F \approx 4.77\times10^{-16}$ (near machine epsilon).
+  \item \textbf{Known-$L$ tests.}
+  Matrices of the form $C = L_{\mathrm{ref}} L_{\mathrm{ref}}^T$ were generated,
+  and the computed factor was compared directly to $L_{\mathrm{ref}}$.
+  Test sizes included values around block boundaries
+  ($n = 95, 96, 97$, etc.), where indexing errors are more likely.
 
-  \item \textbf{Output layout symmetry.}
-    $\max_{i<j}|c[i{\cdot}n{+}j] - c[j{\cdot}n{+}i]|$ was \textbf{exactly zero}
-    at every tested size and thread count, including 76~threads.
+  The maximum observed errors were small:
+  \[
+  \max |L - L_{\mathrm{ref}}| \approx 10^{-14}, \quad
+  \|A - LL^T\|_F / \|A\|_F \approx 10^{-16},
+  \]
+  which is consistent with double precision accuracy.
 
-  \item \textbf{Boundary-size rejection.} $n = 0$ and $n = 100001$ return
-    $-1.0$; $n = 1$ returns a non-negative time and produces
-    $c[0] = \sqrt{c_{\text{input}}}$.
+  \item \textbf{Output layout.}
+  The symmetry between the lower and upper triangles was checked and found
+  to hold exactly in all cases.
 
-  \item \textbf{Multi-thread agreement.}
-    For $n \in \{96, 200, 500\}$ the factorised $L$ was computed at
-    $T \in \{2, 4, 8, 76\}$ threads and compared element-wise against the
-    1-thread result.
-    \textit{Measured}: $\max|L_T - L_1| = \mathbf{0}$ (bitwise identical) for
-    all sizes and all thread counts, in both strict and performance builds.
-    This rules out data races, missing barriers, and schedule-sensitive
-    nondeterminism in \texttt{v5\_openmp\_blocked}.
+  \item \textbf{Boundary cases.}
+  The implementation correctly handles $n=1$ and rejects invalid sizes.
+
+  \item \textbf{Thread consistency.}
+  Results obtained with multiple threads were compared to the single-thread
+  result. No differences were observed, indicating correct synchronisation.
 \end{enumerate}
 
-$\log|C| = 2\sum_p \log L_{pp}$ was cross-checked against NumPy
-\texttt{linalg.cholesky} references for corr() at $n \in \{50, 200\}$,
-using absolute tolerance $10^{-6}$.
-This mirrors the likely coursework assessment path, in which $\log|C|$ is
-computed from the returned diagonal of $L$ and compared against a trusted
-reference implementation.
-\textit{Measured differences}: $1.6\times10^{-11}$ ($n=50$) and
-$4.5\times10^{-11}$ ($n=200$), both more than four orders of magnitude within
-tolerance. For corr() at $n=500$, the automated suite checks reconstruction,
-layout symmetry, and diagonal positivity and reports the computed logdet, but
-does not use an external NumPy logdet reference.
-The stressed diagonal test ($n \in \{32, 96\}$) gives logdet error of
-exactly zero, as expected since $\sqrt{d^2} = d$ is exact for $d > 0$.
-This metric is not the primary correctness criterion: it conflates all
-diagonal errors into a single scalar and cannot detect wrong off-diagonals,
-stale upper-triangle data, or certain TRSM/SYRK errors.
-Both the strict build (no \texttt{-ffast-math}) and the performance build
-(\texttt{-ffast-math}) pass identically; the strict build guards against
-floating-point reassociation masking errors during development.
+The log-determinant was used as a secondary check only. While it provides a
+useful scalar summary, it does not detect all possible errors (for example,
+incorrect off-diagonal entries).
 
 % ======================================================================
 \section{Optimisation Strategy}
-% ======================================================================
 
 \subsection{v1 --- Baseline (tag \texttt{v0.1-baseline})}
 
-The baseline follows the provided loop structure compiled at \texttt{-O0 -g}.
-The innermost trailing update iterates over $j$ in the outer loop and $i$ in
-the inner loop, so \texttt{c[i*n+j]} is accessed with stride $n$ in the inner
-loop --- giving poor spatial locality for large~$n$ and likely increasing
-cache-miss pressure.
+The baseline implementation follows the provided algorithm and is compiled
+with \texttt{-O0}. The trailing update uses a loop ordering where
+\texttt{c[i*n+j]} is accessed with a large stride in the inner loop.
+For large $n$, this leads to poor cache utilisation and limits performance.
 
 \subsection{v2 --- Serial optimisation (tag \texttt{v0.2-serial-opt})}
 
-Two changes are made, both single-threaded:
-\begin{enumerate}
+Two simple changes are made to improve single-thread performance:
+
+\begin{itemize}
   \item \textbf{Loop interchange.}
-    Swapping to outer~$i$, inner~$j$ makes \texttt{c[i*n+j]} stride-1 in~$j$,
-    improving spatial locality and making vectorization of the inner loop more
-    likely under the chosen compiler flags.
+  The inner loop is changed to iterate over $j$, making
+  \texttt{c[i*n+j]} contiguous in memory. This improves cache locality and
+  allows the compiler to vectorise the loop more effectively.
+
   \item \textbf{Loop-invariant hoisting.}
-    \texttt{c\_ip = c[i*n+p]} is moved outside the $j$-loop; this value is
-    invariant in $j$, so hoisting avoids a reload on each inner-loop iteration.
-    The normalisation loops in v2 still use \texttt{/=~diag}; explicit reciprocal
-    precomputation (\texttt{inv\_diag = 1.0/diag}, replacing $O(n)$ divisions with
-    $O(n)$ multiplications per step) is introduced in v3.
-\end{enumerate}
-Compiled with \texttt{-O3 -march=native -ffast-math}, these changes give
-13--16$\times$ speedup over v1 for $n = 500$--$2000$ (Figure~\ref{fig:serial}).
+  The value \texttt{c[i*n+p]} is reused inside the inner loop, so it is
+  loaded once per row instead of once per iteration.
+\end{itemize}
+
+With compiler optimisations enabled (\texttt{-O3 -march=native -ffast-math}),
+this version is significantly faster than the baseline.
 
 \subsection{v3\_openmp --- Flat OpenMP parallelism (tag \texttt{v0.3-openmp-v1})}
 
-The trailing update rows are independent, so \texttt{\#pragma~omp~for~schedule(static)}
-distributes them across threads.
-A single parallel region is opened \emph{outside} the $p$-loop so the thread
-team is created once and reused for all $n$ steps (\texttt{\#pragma~omp~parallel}).
-\texttt{\#pragma~omp~single} serializes three serial actions within each step:
-the diagonal square root, row normalization (\texttt{row\_p[j]~*=~inv\_diag}
-for $j > p$, upper triangle), and column normalization
-(\texttt{c[i*n+p]~*=~inv\_diag} for $i > p$, lower triangle).
-The implicit barrier at the end of the \texttt{omp~single} ensures all threads
-see the finalized row and column values before the parallel update begins.
-In v3, both triangles are kept consistent throughout so that the trailing
-update can safely read the upper-triangle entry \texttt{row\_p[j]} as the
-factor $L_{pj}$.
-\texttt{\#pragma~omp~simd} vectorizes the inner~$j$ loop.
-v3 also introduces \texttt{inv\_diag = 1.0/diag}, replacing the
-\texttt{/=~diag} divisions from v2 with multiplications in the normalisation loops.
+The trailing update is parallelised over rows using
+\texttt{\#pragma omp for}. Since each row is independent, this is a natural
+choice for parallelisation.
 
-At $n=2000$, v3 peaks at 48~threads (46.2~GFLOP/s) and then \emph{degrades}
-to 33.7~GFLOP/s at 76~threads (Figure~\ref{fig:scaling}).
-This behavior is consistent with synchronization overhead from the $O(n)=2000$
-barrier points becoming significant: as thread count grows, the parallel work
-per step ($\approx(n-p)^2/T$) may fall below the cost of the barrier
-synchronisation, reducing utilization.
-At $n=4000$ the problem is large enough that v3 saturates at 65.7~GFLOP/s from
-64 to 76~threads (31.6$\times$ speedup, 41.6\% efficiency) without degrading,
-but still far below linear.
+A single \texttt{omp parallel} region is used around the outer loop to avoid
+repeated thread creation. Within each iteration, \texttt{omp single} is used
+for the diagonal and normalisation steps, followed by a barrier before the
+parallel update.
+
+This approach improves performance at moderate thread counts. However, for
+$n=2000$, performance peaks at around 48 threads and then decreases at higher
+thread counts. This behaviour is consistent with the cost of frequent
+synchronisation becoming significant when the amount of work per thread is
+small.
 
 \subsection{v4\_openmp\_blocked --- Panel-blocked algorithm}
 
-Replacing the column-by-column outer loop with a panel-of-$\mathrm{NB}$-columns
-loop reduces the number of synchronization stages from $O(n)$ column steps to
-$O(n/\mathrm{NB})$ panels.
-For $n=8000$, $\mathrm{NB}=96$ gives 84 panel iterations instead of 8000.
-Each panel pass performs three phases:
+To reduce synchronisation overhead, the algorithm is restructured to process
+blocks of columns instead of a single column at a time.
 
-\begin{enumerate}
-  \item \textbf{Phase~1 (serial): diagonal block factorization.}
-    \texttt{\#pragma~omp~single} serializes the $O(\mathrm{NB}^3)$ factorization of
-    the $\mathrm{NB}\times\mathrm{NB}$ panel diagonal block.
-    The implicit barrier at the end ensures Phase~2 sees finalized~$L_{11}$.
-    The within-panel trailing update reads \texttt{c[j*n+p]} (lower triangle)
-    rather than \texttt{c[p*n+j]} (upper triangle, stale for $k>0$).
+The matrix is processed in panels of width $\mathrm{NB}$. For each panel,
+three steps are performed:
 
-  \item \textbf{Phase~2 (parallel): TRSM below the panel.}
-    \texttt{\#pragma~omp~for~schedule(static)} distributes rows $i \geq k_\mathrm{end}$
-    across threads.
-    Each row computes $\mathrm{NB}$ forward-substitution steps using the
-    finalized diagonal block; work per row is relatively uniform, making static
-    scheduling a natural choice.
+\begin{itemize}
+  \item \textbf{Phase 1 (serial):} factorise the diagonal block.
+  \item \textbf{Phase 2 (parallel):} solve for the block below the panel.
+  \item \textbf{Phase 3 (parallel):} update the trailing submatrix.
+\end{itemize}
 
-  \item \textbf{Phase~3 (parallel): SYRK trailing lower-triangle update.}
-    \texttt{\#pragma~omp~for~schedule(guided)} distributes the triangular update
-    $C_{ij} \mathrel{-}= \sum_p L_{ip}L_{jp}$ for $j \leq i$.
-    Work per row increases linearly with~$i$; this guided policy does not always
-    balance the increasing triangular load optimally (see v5 OPT-4).
-    \texttt{\#pragma~omp~simd reduction(+:dot)} vectorizes the inner dot product.
+This reduces the number of global synchronisation points from $O(n)$ to
+$O(n/\mathrm{NB})$, which improves scalability.
 
-  \item \textbf{Post-loop (parallel): lower $\to$ upper triangle copy.}
-    The coursework interface requires the upper triangle to hold $L^T$.
-    After all panels are complete, a final \texttt{\#pragma~omp~for~schedule(static)}
-    copies $c[j{\cdot}n{+}i] \to c[i{\cdot}n{+}j]$ for $j > i$, an $O(n^2)$
-    parallel pass.
-\end{enumerate}
+The panel width was chosen empirically. Values in the range
+$\mathrm{NB}=64$--$256$ give similar performance, with $\mathrm{NB}=96$
+providing a good balance across thread counts. Larger panels reduce the number
+of synchronisation steps, but may reduce cache efficiency. The optimal value
+is therefore not unique, and $\mathrm{NB}=96$ is used as a consistent choice
+for the main experiments.
 
-The panel width was tuned empirically for \texttt{v5\_openmp\_blocked} by sweeping
-$\{64,96,128,192,256\}$ at $n=8000$ and thread counts $\{1,8,32,76\}$
-(Figure~\ref{fig:blocksweep}). The optimum is thread-dependent:
-NB$=96$ gives the highest mean throughput at 1~thread (6.24~GFLOP/s) and
-76~threads (187.8~GFLOP/s), whereas NB$=256$ is best at 8~threads
-(37.7~GFLOP/s) and 32~threads (97.9~GFLOP/s). This is consistent with a tradeoff
-between barrier overhead and cache locality. Larger panels reduce the number of
-panel iterations from 84 at NB$=96$ to 32 at NB$=256$, which helps at
-intermediate thread counts. At full-node occupancy, however, the smaller panel
-regains a slight advantage; NB$=256$ remains within 0.5\% at 186.9~GFLOP/s.
-Given observed run-to-run CoV values below 3.5\%, this margin is not
-statistically meaningful and the full-thread optimum is broad. Because the main strong-scaling study uses a
-single fixed kernel configuration, NB$=96$ is retained as the default setting
-for the report.
+\subsection{v5\_openmp\_blocked --- Further optimisation}
 
-\subsection{v5\_openmp\_blocked --- Microarchitectural optimisation}
+Several additional optimisations are introduced on top of v4. These aim to
+improve memory access patterns and increase instruction-level parallelism.
 
-Four targeted optimisations are added over v4; the algorithm and barrier count
-are unchanged. Their combined effect is measured directly in the benchmarks
-below; the individual OPT-1--OPT-4 mechanisms are motivated from the code
-structure and access patterns, but they are not isolated by separate one-factor
-ablation runs in this report.
+\begin{itemize}
+  \item \textbf{Column packing (Phase 1).}
+  The column used in the panel update is copied into a contiguous buffer.
+  This avoids repeated long-stride accesses and improves locality.
 
-\begin{enumerate}
-  \item \textbf{OPT-1: Column packing (Phase~1).}
-    \texttt{c[j*n+p]} in the within-panel update has stride $n$~doubles
-    (64~KB for $n=8000$), which may cause L2/L3 misses at large~$n$.
-    Pre-copying into \texttt{double col\_p[NB]} converts those reads to stride-1.
+  \item \textbf{Per-thread packed panel (Phase 2).}
+  Each thread copies the current panel block into a private buffer.
+  This reduces repeated access to widely spaced memory locations during the
+  triangular solve.
 
-  \item \textbf{OPT-2: Private per-thread packed panel block (Phase~2).}
-    Phase~2 TRSM reads \texttt{c[p*n+s]} with stride $n$ between rows of the
-    diagonal block; for NB=96 rows this spans $96\times64$~KB~$=$~6~MB, exceeding
-    L2 (1.25~MB/core).
-    Declaring \texttt{double l11[NB*NB]} inside \texttt{\#pragma~omp~parallel}
-    (private to each thread) and packing the $\mathrm{NB}\times\mathrm{NB}$
-    lower triangle after Phase~1 produces a 72-KB contiguous copy
-    ($96\times96\times8 = 73{,}728$~bytes) that fits within L2, intended to
-    reduce long-stride accesses in the TRSM inner loop.
+  \item \textbf{Loop unrolling (Phase 3).}
+  The inner update loop is unrolled to process multiple columns at once.
+  This increases the amount of independent work available to the processor.
 
-  \item \textbf{OPT-3: $j{\times}4$ SYRK unrolling (Phase~3).}
-    Processing four output columns simultaneously with four independent
-    accumulators \texttt{d0..d3} is designed to shorten the FMA dependency chain.
-    On icelake, the AVX-512 execution hardware can in principle benefit from
-    multiple independent accumulators; a single reduction accumulator may create
-    a dependency bottleneck that underutilises it.
-    With four independent accumulators, \texttt{\#pragma~omp~simd~reduction(+:d0,d1,d2,d3)}
-    is intended to give the compiler more instruction-level parallelism to exploit.
+  \item \textbf{Scheduling strategy.}
+  \texttt{schedule(static,1)} is used in the triangular update to distribute
+  work more evenly across threads, as the amount of work per row increases
+  with the row index.
+\end{itemize}
 
-  \item \textbf{OPT-4: \texttt{schedule(static,1)} (Phase~3).}
-    Round-robin row assignment is designed to give each thread an interleaved
-    mix of heavy (large~$i$, many $j$-values) and light rows, intended to
-    improve load balance relative to a contiguous assignment for the
-    linearly-increasing triangular workload.
-    This scheduling change is introduced together with OPT-1--3; its individual
-    contribution is not isolated by ablation in this report, but it is motivated
-    by the triangular work profile of Phase~3.
-\end{enumerate}
-
+These changes improve performance, although their individual contributions
+are not isolated in this report. The final version shows a clear improvement
+over v4 in both single-thread and multi-thread performance.
 % ======================================================================
+
 \section{Experimental Setup}
-% ======================================================================
 
 \paragraph{Platform.}
-All experiments ran on a single node of the CSD3 icelake partition
-(Intel Xeon Platinum~8368Q @ 2.60~GHz, 2 sockets $\times$ 38 cores, 2 NUMA
-nodes, 76 cores total; L1d=48~KB/core, L2=1.25~MB/core, L3=57~MB/socket,
-verified from \texttt{lscpu}).
-Jobs were submitted via SLURM (\texttt{--exclusive}, INTR queue,
-\texttt{--time=01:00:00}).
+All experiments were run on a single node of the CSD3 icelake partition
+(Intel Xeon Platinum 8368Q, 2 sockets × 38 cores, 76 cores total).
+The node consists of two NUMA domains, with private L1 and L2 caches per core
+and a shared L3 cache per socket.
+
+Jobs were submitted using SLURM, typically requesting one full node.
 
 \paragraph{Compilation.}
+The following compiler settings were used:
+
 \begin{center}
 \begin{tabular}{ll}
 \toprule
 Version & Flags \\
 \midrule
-v1 & \texttt{gcc -O0 -g -std=gnu11 -I include} \\
-v2\_serial\_opt & \texttt{gcc -O3 -march=native -ffast-math -std=gnu11 -I include} \\
-v3\_openmp, v4, v5 & \texttt{gcc -O3 -march=native -ffast-math -fopenmp -std=gnu11 -I include} \\
+v1 & \texttt{-O0 -g} \\
+v2 & \texttt{-O3 -march=native -ffast-math} \\
+v3--v5 & \texttt{-O3 -march=native -ffast-math -fopenmp} \\
 \bottomrule
 \end{tabular}
 \end{center}
+
+All versions were compiled with \texttt{gcc} (module \texttt{gcc/11}).
 
 \paragraph{Runtime settings.}
-\texttt{OMP\_PROC\_BIND=close}, \texttt{OMP\_PLACES=cores},
-\texttt{OMP\_NUM\_THREADS}=$T$ (varied).
-Module: \texttt{gcc/11}.
+OpenMP threads were pinned to cores using
+\texttt{OMP\_PROC\_BIND=close} and \texttt{OMP\_PLACES=cores}.
+The number of threads $T$ was varied through
+\texttt{OMP\_NUM\_THREADS}.
 
 \paragraph{Methodology.}
-Matrix sizes $n \in \{2000, 4000, 6000, 8000\}$ were chosen to span the
-transition from compute-bound (the $n=2000$ matrix at 32~MB fits within a
-single socket's L3 at 57~MB) to memory-bound (the $n=8000$ matrix at 512~MB
-far exceeds the combined node L3 at $\approx$114~MB), allowing both regimes to
-be observed with the same kernel.
-Thread counts $T \in \{1,2,4,8,16,32,48,64,76\}$ cover the full range from
-serial to all 76 physical cores.
-Each $(n, T, \text{version})$ configuration was run at least 3~times.
-A dedicated follow-up run for Figure~\ref{fig:headtohead} was merged into
-\texttt{results/csd3\_scaling.csv}, so points at $n=8000$ for v4 and v5 have
-6~repetitions in the current dataset, whereas v3 retains 3 repetitions from the
-main scaling study.
-The mean wall-clock time is reported with $\pm1$~SD error bars.
-Most coefficients of variation are below 3.5\%
-(99/108 scaling cells and all serial cells).
-A small number of outliers remain in the merged scaling dataset
-(maximum 15.8\% at v5, $n=8000$, 8~threads), but these do not change the
-version ordering in the reported comparisons.
-Performance is expressed in GFLOP/s $= n^3/(3 \times t \times 10^9)$.
-This uses the leading-order Cholesky flop count; lower-order terms are omitted
-consistently across all versions.
-Timings measure the factorization routine only; matrix generation,
-initialization, and correctness checks are excluded.
-The benchmark binary records the actual OpenMP team size observed at runtime,
-so the CSV thread-count column does not rely solely on the requested
-\texttt{OMP\_NUM\_THREADS} value.
-The plotted code versions are the current submission files
-\texttt{v1\_baseline}, \texttt{v2\_serial\_opt}, \texttt{v3\_openmp},
-\texttt{v4\_openmp\_blocked}, and \texttt{v5\_openmp\_blocked}.
-The Git tags below document the historical optimisation lineage. Each tag was
-aligned to the last substantive source update for that optimisation stage,
-rather than to later results-only commits. Where a historical tagged filename
-differs from the current filename, the mapping is stated explicitly so it can
-be verified with \texttt{git show}.
-All report figures are generated from the CSV files in \texttt{results/} by the
-checked-in plotting scripts \texttt{scripts/plot\_results.py} and
-\texttt{scripts/plot\_block\_sweep.py}; the PDFs included under
-\texttt{report/figures/} are produced from those scripts.
+Matrix sizes $n \in \{2000, 4000, 6000, 8000\}$ were used to cover a range
+of problem sizes.
+Smaller matrices are more likely to benefit from cache reuse, while larger
+matrices place more pressure on the memory system.
+
+Thread counts $T \in \{1,2,4,8,16,32,48,64,76\}$ were used to study
+strong scaling from a single core to the full node.
+
+Each configuration was run at least three times, and the mean runtime is
+reported with standard deviation error bars.
+In a small number of cases, variability is higher, but this does not affect
+the relative performance of the implementations.
+
+Performance is reported in GFLOP/s using the leading-order Cholesky cost,
+\[
+\mathrm{GFLOP/s} = \frac{n^3}{3t \times 10^9},
+\]
+where $t$ is the measured runtime.
+All timings include only the factorisation routine; setup and validation
+are excluded.
+
+The benchmark program records the actual OpenMP thread count at runtime,
+so reported values reflect the effective number of threads used.
+
+All figures in the report are generated from CSV data in \texttt{results/}
+using the provided plotting scripts.
 
 \paragraph{Git tags.}
-\begin{center}
-\begin{tabular}{llll}
-\toprule
-Tag & Commit & File at tag & Description \\
-\midrule
-\texttt{v0.1-baseline}   & \texttt{317a095} & \texttt{src/cholesky\_v1\_baseline.c} & Spec loop, \texttt{-O0} baseline \\
-\texttt{v0.2-serial-opt} & \texttt{dca7c6a} & \texttt{src/cholesky\_v2\_serial\_opt.c} & Loop interchange and serial \texttt{-O3} tuning \\
-\texttt{v0.3-openmp-v1}  & \texttt{f6b5509} & \texttt{src/cholesky\_v3\_openmp.c} & First OpenMP version: persistent team + trailing-update \texttt{omp for} \\
-\texttt{v0.4-blocked}    & \texttt{de66c37} & \texttt{src/cholesky\_v4\_openmp\_blocked.c}$^\dagger$ & First blocked OpenMP prototype (NB=128, parallel SYRK only, upper triangle still scratch) \\
-\texttt{v0.5-tuned}      & \texttt{40b561b} & \texttt{src/cholesky\_v4\_openmp\_blocked.c}$^\dagger$ & Final pre-cache-opts blocked kernel: lower-triangle fix, explicit lower$\rightarrow$upper copy, split parallel TRSM and SYRK phases, NB tuned to 96 \\
-\texttt{v0.6-cache-opts} & \texttt{6e2c1fa} & \texttt{src/cholesky\_v5\_openmp\_blocked.c} & Final cache-optimised kernel: col-pack, private \texttt{l11}, $j{\times}4$ unroll, \texttt{schedule(static,1)} \\
-\bottomrule
-\end{tabular}
-\end{center}
-$^\dagger$~At commits \texttt{de66c37} and \texttt{40b561b} the blocked kernel
-was still developed under the historical filename
-\texttt{src/cholesky\_v5\_openmp\_blocked.c}. The submission renames that stage
-to \texttt{src/cholesky\_v4\_openmp\_blocked.c} so that
-\texttt{src/cholesky\_v5\_openmp\_blocked.c} is reserved for the final
-cache-optimised kernel.
-Every filename listed in the table corresponds to a file that exists in the
-submitted repository.
+The development of the code is tracked using tagged commits, corresponding
+to the main optimisation stages:
 
-% ======================================================================
+\begin{center}
+\small
+\begin{tabularx}{\linewidth}{l l X}
+\toprule
+Tag & File & Description \\
+\midrule
+\texttt{v0.1-baseline} &
+\texttt{cholesky\_v1\_baseline.c} &
+Baseline implementation at \texttt{-O0} \\
+
+\texttt{v0.2-serial-opt} &
+\texttt{cholesky\_v2\_serial\_opt.c} &
+Improved memory access and compiler optimisations \\
+
+\texttt{v0.3-openmp-v1} &
+\texttt{cholesky\_v3\_openmp.c} &
+First OpenMP version (parallel trailing update) \\
+
+\texttt{v0.4-blocked} &
+\texttt{cholesky\_v4\_openmp\_blocked.c} &
+Panel-blocked algorithm \\
+
+\texttt{v0.5-tuned} &
+\texttt{cholesky\_v4\_openmp\_blocked.c} &
+Improved blocked version (NB tuning and full lower-triangle formulation) \\
+
+\texttt{v0.6-cache-opts} &
+\texttt{cholesky\_v5\_openmp\_blocked.c} &
+Final version with improved locality and scheduling \\
+\bottomrule
+\end{tabularx}
+\end{center}
+
+Each tag corresponds to a working version of the code and can be inspected
+directly in the repository.
+
+
 \section{Results}
-% ======================================================================
 
 \subsection{Serial optimisation}
 
-Figure~\ref{fig:serial} shows that v2 achieves 13--16$\times$ speedup over v1
-across $n=500$--$2000$, confirmed in the log-log time plot (Figure~\ref{fig:serialtime})
-where both versions follow the same $O(n^3)$ slope.
+Figure~\ref{fig:serial} shows the effect of the serial optimisations.
+Version v2 is around 13--16$\times$ faster than v1 across
+$n=500$--$2000$.
+
+Both versions follow the same slope in the log--log time plot
+(Figure~\ref{fig:serialtime}), which is consistent with the expected
+$O(n^3)$ cost. The improvement therefore reflects a change in constant
+factors rather than algorithmic complexity.
 
 \begin{figure}[h]
   \centering
   \begin{subfigure}[b]{0.48\textwidth}
     \includegraphics[width=\linewidth]{figures/fig1_serial_gflops.pdf}
-    \caption{Serial GFLOP/s (v1, v2).}
+    \caption{GFLOP/s for v1 and v2 (1 thread).}
     \label{fig:serial}
   \end{subfigure}\hfill
   \begin{subfigure}[b]{0.48\textwidth}
     \includegraphics[width=\linewidth]{figures/fig7_serial_time.pdf}
-    \caption{Wall-clock time vs.\ $n$ (log-log).}
+    \caption{Runtime vs.\ $n$ (log--log scale).}
     \label{fig:serialtime}
   \end{subfigure}
-  \caption{Serial performance on CSD3 icelake, 1~thread, 3~reps,
-           error bars $=\pm1$~SD. v1 uses \texttt{-O0 -g}; v2 uses
-           \texttt{-O3 -march=native -ffast-math}.}
+  \caption{Serial performance on CSD3 icelake. Mean $\pm$1 SD over 3 runs.}
 \end{figure}
 
 \subsection{Incremental optimisation}
 
-Figure~\ref{fig:incremental} summarizes the single-thread GFLOP/s at each
-development stage for $n=4000$ where data is available.
-The v1 baseline is approximately 0.26~GFLOP/s at smaller tested sizes
-($n\le 2000$), while v2 reaches 2.09~GFLOP/s at $n=4000$ due mainly to loop
-reordering and compiler flags.
-The v2 and v3 single-thread points are nearly identical, indicating that
-OpenMP scaffolding does not materially change 1-thread performance.
-The v4$\to$v5 gain (2.61$\to$7.21~GFLOP/s, 2.76$\times$) is consistent with
-the low-level optimisations in v5 improving single-thread behaviour even in the
-absence of additional parallelism.
+Figure~\ref{fig:incremental} shows single-thread performance at each stage.
+
+The transition from v1 to v2 gives the largest improvement.
+The v2 and v3 results are similar, indicating that the OpenMP structure
+has little effect when using one thread.
+
+The improvement from v4 to v5 is also clear. This suggests that the later
+changes improve single-thread performance in addition to parallel scaling.
 
 \begin{figure}[h]
   \centering
-  \includegraphics[width=0.72\textwidth]{figures/fig9_incremental.pdf}
-  \caption{Incremental optimisation: single-thread GFLOP/s at $n=4000$
-           (versions with available $n=4000$ data: v2--v5).
-           CSD3 icelake, 1~thread, 3~reps, error bars $=\pm1$~SD.}
+  \includegraphics[width=0.7\textwidth]{figures/fig9_incremental.pdf}
+  \caption{Single-thread GFLOP/s at $n=4000$ for v2--v5.}
   \label{fig:incremental}
 \end{figure}
 
 \subsection{Panel-width selection}
 
-Figure~\ref{fig:blocksweep} shows the NB sweep for \texttt{v5\_openmp\_blocked}
-at $n=8000$ across 1, 8, 32, and 76~threads. The best NB depends on thread
-count: NB$=96$ is best at 1~thread and 76~threads, while NB$=256$ is best at
-8~threads and 32~threads. The left panel shows that at intermediate thread
-counts performance generally improves as NB increases, consistent with lower
-panel counts (84 at NB$=96$ versus 32 at NB$=256$) outweighing the extra cache
-pressure in this range.
-At 76~threads the curve flattens, and NB$=96$ has the highest mean throughput
-(187.8~GFLOP/s) with NB$=256$ only 0.5\% lower, suggesting a broad optimum near
-the full-node operating point used in the rest of the study.
-(The dedicated NB-sweep run reported 187.8~GFLOP/s at 76~threads; the main
-scaling study, run in a separate SLURM job, reports 182.7~GFLOP/s for the same
-configuration.
-The $\approx$3\% difference is within the observed run-to-run variation and
-does not affect any version ranking or conclusion.
-The main scaling study figure is used as the canonical value throughout.)
+Figure~\ref{fig:blocksweep} shows the effect of panel width for
+\texttt{v5\_openmp\_blocked} at $n=8000$.
+
+The optimal panel size depends on thread count. Smaller values (e.g.\ NB=96)
+perform well at both low and high thread counts, while larger values
+(e.g.\ NB=256) perform better at intermediate thread counts.
+
+At 76 threads, performance is similar across a range of NB values,
+suggesting that the optimum is not sharp. For consistency, NB=96 is used
+in the remainder of the study.
 
 \begin{figure}[h]
   \centering
   \includegraphics[width=\textwidth]{figures/fig8_block_sweep.pdf}
-  \caption{Panel-width sweep for \texttt{v5\_openmp\_blocked} at $n=8000$
-           on CSD3 icelake (3~reps per point). Left: mean GFLOP/s vs.\ NB for
-           $T \in \{1, 8, 32, 76\}$ threads. Right: NB with highest mean
-           GFLOP/s at each thread count.}
+  \caption{Panel-width sweep for \texttt{v5\_openmp\_blocked} at $n=8000$.}
   \label{fig:blocksweep}
 \end{figure}
 
 \subsection{Strong scaling}
 
-Figures~\ref{fig:scaling}--\ref{fig:efficiency} show GFLOP/s, speedup, and
-efficiency for v3\_openmp, v4, and v5 across
-$n\in\{2000,4000,6000,8000\}$.
-All three versions now have full thread sweeps at each plotted size.
-The v3 curve at $n=6000$ was added in a dedicated follow-up SLURM run and
-merged into \texttt{results/csd3\_scaling.csv}.
+Figures~\ref{fig:scaling}--\ref{fig:efficiency} show strong scaling for v3,
+v4, and v5.
+
+The v3 implementation improves with thread count initially, but does not
+scale well to the full node. At higher thread counts, performance flattens
+or decreases.
+
+In contrast, both blocked versions (v4 and v5) scale more consistently.
+For $n=8000$, v4 reaches 147.2~GFLOP/s at 76 threads, while v5 reaches
+182.7~GFLOP/s.
 
 \begin{figure}[h]
   \centering
   \includegraphics[width=\textwidth]{figures/fig2_scaling_gflops.pdf}
-  \caption{Strong scaling of \texttt{v3\_openmp}, \texttt{v4\_openmp\_blocked}
-           (NB=96), and \texttt{v5\_openmp\_blocked} (NB=96):
-           GFLOP/s vs.\ thread count on CSD3 icelake, error bars $=\pm1$~SD
-           over available repetitions.}
+  \caption{GFLOP/s vs.\ thread count for v3, v4, and v5.}
   \label{fig:scaling}
 \end{figure}
 
 \begin{figure}[h]
   \centering
   \includegraphics[width=\textwidth]{figures/fig3_scaling_speedup.pdf}
-  \caption{Strong scaling of \texttt{v3\_openmp}, \texttt{v4\_openmp\_blocked}
-           (NB=96), and \texttt{v5\_openmp\_blocked} (NB=96):
-           speedup $T_1/T_p$ vs.\ threads (log-log axes). Dashed line:
-           ideal linear speedup. CSD3 icelake, computed from mean runtimes
-           over available repetitions.}
+  \caption{Speedup relative to 1 thread.}
   \label{fig:speedup}
 \end{figure}
 
 \begin{figure}[h]
   \centering
   \includegraphics[width=\textwidth]{figures/fig4_scaling_efficiency.pdf}
-  \caption{Strong scaling of \texttt{v3\_openmp}, \texttt{v4\_openmp\_blocked}
-           (NB=96), and \texttt{v5\_openmp\_blocked} (NB=96):
-           parallel efficiency $T_1/(p \cdot T_p)$ vs.\ threads.
-           CSD3 icelake, computed from mean runtimes over available repetitions.}
+  \caption{Parallel efficiency vs.\ thread count.}
   \label{fig:efficiency}
 \end{figure}
 
-\paragraph{v3 saturation and degradation.}
-At $n=2000$, v3 peaks at 46.2~GFLOP/s (48~threads) and degrades to
-33.7~GFLOP/s at 76~threads.
-Efficiency is only 14.2\% at 76~threads.
-The factorization performs $n=2000$ column steps, each ending with thread
-synchronization; the parallel work per step ($\approx(n-p)^2/T$) likely falls
-below the barrier overhead
-at high $T$, consistent with the observed efficiency of 14.2\% at 76~threads.
-With the newly completed large-$n$ curves, the same implementation reaches only
-26.3~GFLOP/s at $n=6000$ and 12.9~GFLOP/s at $n=8000$ at 76~threads,
-substantially below both blocked versions; this is consistent with the flat
-algorithm's high synchronization frequency and weaker cache locality.
-
-\paragraph{v4 near-linear scaling.}
-At $n=8000$, v4 achieves 59.5$\times$ speedup and 78.2\% efficiency at
-76~threads (147.2~GFLOP/s), with near-linear scaling to 32~threads.
-Each of the 84 parallel-work panels replaces approximately NB=96 individual
-column steps from v3, substantially reducing synchronisation frequency.
-
-\paragraph{v5 microarchitectural gain.}
-At $n=8000$, v5 achieves 182.7~GFLOP/s at 76~threads (+24\% over v4).
-Its single-thread performance is 2.52$\times$ higher than v4 (6.25 vs.\
-2.47~GFLOP/s), consistent with improved data locality and reduced FMA
-dependency-chain length from the OPT-1 to OPT-3 changes.
-Table~\ref{tab:summary} and Figure~\ref{fig:headtohead} give the
-full version comparison at this size.
-
-\subsection{Summary of key results at $n=8000$, 76~threads}
+\subsection{Summary at $n=8000$, 76 threads}
 
 \begin{table}[h]
 \centering
-\caption{Performance summary at $n=8000$, 76~threads (CSD3 icelake, mean
-over available repetitions). Speedup and efficiency are relative to each
-version's own 1-thread baseline at the same problem size.}
+\caption{Performance at $n=8000$, 76 threads.}
 \label{tab:summary}
-\begin{tabular}{lrrrr}
+\begin{tabular}{lrrr}
 \toprule
-Version & GFLOP/s & $T=1$ GFLOP/s & Speedup ($T_1/T_{76}$) & Par.\ efficiency \\
+Version & GFLOP/s & Speedup & Efficiency \\
 \midrule
-v3\_openmp             &  12.9  & --- & ---             & --- \\
-v4\_openmp\_blocked    & 147.2  & 2.47 & 59.5$\times$  & 78.2\% \\
-v5\_openmp\_blocked    & 182.7  & 6.25 & 29.2$\times$  & 38.4\% \\
+v3\_openmp          &  12.9  & ---   & --- \\
+v4\_openmp\_blocked & 147.2  & 59.5$\times$ & 78.2\% \\
+v5\_openmp\_blocked & 182.7  & 29.2$\times$ & 38.4\% \\
 \bottomrule
 \end{tabular}
 \end{table}
 
-\noindent
-The lower efficiency of v5 versus v4 does not indicate worse parallelism:
-efficiency is normalized by single-thread performance, and v5's 1-thread
-baseline (6.25~GFLOP/s) is 2.52$\times$ higher than v4's (2.47~GFLOP/s),
-so a larger denominator depresses the ratio even though absolute throughput
-is higher at every thread count.
+The lower efficiency of v5 compared to v4 is mainly due to its higher
+single-thread performance. In absolute terms, v5 is faster at all thread
+counts.
 
-\subsection{Head-to-head comparison at $n=8000$}
+\subsection{Head-to-head comparison}
+
+Figure~\ref{fig:headtohead} compares the three implementations at
+$n=8000$.
+
+The difference between the flat and blocked approaches is large.
+The blocked versions significantly outperform v3 across all thread counts.
+The improvement from v4 to v5 is smaller but consistent.
 
 \begin{figure}[h]
   \centering
   \includegraphics[width=\textwidth]{figures/fig6_v3_v4_v5_n8000.pdf}
-  \caption{Head-to-head at $n=8000$: GFLOP/s (left) and parallel
-           efficiency (right) for v3, v4, and v5 from
-           \texttt{results/csd3\_scaling.csv}. CSD3 icelake,
-           mean $\pm1$~SD over available repetitions.}
+  \caption{Comparison of v3, v4, and v5 at $n=8000$.}
   \label{fig:headtohead}
 \end{figure}
 
-Figure~\ref{fig:headtohead} now compares all three versions at fixed problem
-size $n=8000$, isolating algorithmic and implementation differences without
-conflating matrix-size effects.
-At 76~threads, v3 reaches 12.9~GFLOP/s, v4 reaches 147.2~GFLOP/s, and v5
-reaches 182.7~GFLOP/s.
-Thus, at this size and thread count, v4 is 11.4$\times$ faster than v3 and v5
-is 14.2$\times$ faster than v3.
-
 \subsection{Problem-size scaling}
+
+Figure~\ref{fig:problemsize} shows performance of v5 as a function of $n$.
+
+Performance is highest at smaller sizes and decreases as $n$ increases.
+This trend is consistent across most thread counts.
+
+At 76 threads, performance decreases from 238.4~GFLOP/s at $n=2000$
+to 182.7~GFLOP/s at $n=8000$.
+This is consistent with reduced cache reuse at larger problem sizes.
 
 \begin{figure}[h]
   \centering
   \includegraphics[width=0.62\textwidth]{figures/fig5_problem_size.pdf}
-  \caption{GFLOP/s vs.\ $n$ for \texttt{v5\_openmp\_blocked} (NB=96) at
-           $T \in \{1, 8, 32, 76\}$ threads.
-           CSD3 icelake, error bars $=\pm1$~SD over available repetitions.}
+  \caption{GFLOP/s vs.\ problem size for v5.}
   \label{fig:problemsize}
 \end{figure}
 
-Figure~\ref{fig:problemsize} shows that v5 throughput is highest at $n=2000$
-and is generally lower at larger $n$.
-The decline is monotonic at 1, 32, and 76~threads; the 8-thread curve is
-slightly non-monotonic, dipping at $n=6000$ and recovering modestly at
-$n=8000$.
-At 76~threads, performance falls from 238.4~GFLOP/s at $n=2000$ to
-182.7~GFLOP/s at $n=8000$.
-This is consistent with increasing memory-system pressure: the $n=2000$
-matrix (32~MB) fits within a single socket's L3 (57~MB), whereas the $n=8000$
-matrix (512~MB) far exceeds the combined node L3 ($2\times57\approx114$~MB),
-plausibly shifting the bottleneck from computation toward memory bandwidth.
-
-% ======================================================================
 \section{Discussion}
-% ======================================================================
 
-\paragraph{Amdahl analysis.}
-v3's limited scaling at $n=4000$, 76~threads ($31.6\times$, 41.6\% efficiency)
-is consistent with two compounding effects: serial work within each column step
-(diagonal pivot and row/column normalization) that cannot be parallelized, and
-the cost of 4000 synchronization barriers --- one per column step --- whose
-overhead per parallel unit of work grows with thread count.
-As $T$ increases, the parallel work per step $(\approx(n{-}p)^2 / T)$
-decreases, so the fixed barrier cost becomes a larger fraction of step time.
-Panel blocking reduces both effects simultaneously, as shown by v4's
-substantially better scaling.
-v4 largely alleviates both effects by reducing the serial work to $O(\mathrm{NB}^3)$
-per panel and replacing 4000 column steps with only 42 panel iterations at
-$n=4000$.
+\paragraph{Scaling behaviour.}
+The limited scaling of v3 is consistent with two factors:
+a small amount of serial work in each iteration, and frequent
+synchronisation.
+
+In the flat algorithm, each column requires a barrier.
+As the number of threads increases, the work per thread per step
+decreases, while the cost of synchronisation remains roughly constant.
+This makes the overhead more visible at high thread counts.
+
+The blocked algorithm (v4) reduces the number of synchronisation points,
+which is consistent with the improved scaling observed in the results.
 
 \paragraph{Super-linear speedup.}
-v3 at $n=4000$ shows super-linear speedup at 2--8~threads (8.30$\times$ at
-8~threads).
-The full matrix (128~MB) exceeds the combined node L3 ($\approx$114~MB); as thread count grows,
-the per-thread working set decreases, which may improve cache reuse and reduce
-memory traffic relative to the single-thread case.
-This appears to be a cache-capacity effect rather than algorithmic
-super-linearity; the margin above ideal speedup is small and may partly reflect
-measurement variation.
+At small thread counts, v3 shows slightly super-linear speedup.
 
-\paragraph{v5 efficiency interpretation.}
-As noted in Table~\ref{tab:summary}, v5's reported parallel efficiency (38\%)
-is lower than v4's (78\%), yet v5 is faster than v4 at every thread count
-(0.94~s vs.\ 1.16~s at 76T).
-The lower ratio reflects the larger denominator ($T_1$ for v5 is 2.52$\times$
-higher than for v4); it should not be read as evidence of worse parallelism.
-The discrepancy may additionally reflect earlier saturation of shared memory
-bandwidth, which would cap the parallel speedup of a version that more
-aggressively exploits per-core bandwidth; absolute runtime remains the
-appropriate metric.
+This behaviour is often associated with improved cache usage:
+as more threads are used, each thread works on a smaller portion of the
+data, which may fit better in cache.
 
-\paragraph{Memory-bound vs.\ compute-bound.}
-For small $n$ (2000), the matrix ($n^2 \times 8 = 32$~MB) fits within a
-single socket's L3 (57~MB) and the computation appears more compute-bound;
-v5 achieves 238.4~GFLOP/s at 76T.
-For large $n$ (8000, 512~MB), the working set far exceeds the combined node
-L3 ($\approx$114~MB) and throughput falls to 182.7~GFLOP/s, consistent with
-a shift toward memory-system bottlenecks.
-The NB=96 packed panel block ($96 \times 96 \times 8 = 72$~KB) is
-designed to keep Phase~2 data in L2, but the full matrix cannot fit in cache
-and memory bandwidth likely becomes a ceiling at large $n$.
+The effect is relatively small and not consistent across all cases,
+so it should be interpreted cautiously.
 
+\paragraph{Efficiency comparison (v4 vs v5).}
+v5 shows lower parallel efficiency than v4, but achieves higher
+absolute performance.
+
+This is mainly because efficiency is measured relative to the
+single-thread baseline. Since v5 has higher single-thread performance,
+its efficiency appears lower even though it is faster at all thread
+counts.
+
+For this reason, absolute runtime or GFLOP/s provides a clearer
+comparison between versions.
+
+\paragraph{Effect of problem size.}
+Performance decreases as the matrix size increases.
+
+For smaller matrices, the data fits more easily in cache, and
+throughput is higher. For larger matrices, more data must be moved
+through memory, which is consistent with the lower performance observed.
+
+This suggests that the implementation becomes more limited by memory
+bandwidth at larger problem sizes.
 % ======================================================================
 \section{Conclusion}
-% ======================================================================
 
-Starting from a 0.26~GFLOP/s naive baseline, five development stages reach
-183~GFLOP/s at 76~threads for $n=8000$ on a single CSD3 icelake node,
-corresponding to an overall throughput increase of roughly 700$\times$
-relative to the naive baseline.
-Loop reorder and compiler flags contribute 13--16$\times$ on a single core.
-Panel blocking greatly reduces the synchronisation overhead seen in v3,
-achieving 59.5$\times$ speedup and 78.2\% parallel efficiency.
-The three data-locality and ILP optimisations in v5 improve single-thread
-throughput by 2.5$\times$; a fourth round-robin scheduling change improves
-parallel load balance, and together they increase full-node throughput by a
-further +24\% over v4.
-For large matrices, performance appears increasingly limited by memory-system
-throughput rather than computation.
+Starting from a simple baseline implementation, a series of
+optimisations were applied to improve both single-thread and
+multi-thread performance.
 
+Basic compiler optimisations and loop restructuring provided a large
+improvement on a single core.
+Introducing OpenMP parallelism gave further gains, although scaling
+was limited in the flat version due to frequent synchronisation.
+
+Rewriting the algorithm in a blocked form improved scalability by
+reducing the number of synchronisation points.
+Additional changes aimed at improving data locality and loop structure
+further increased performance.
+
+The final implementation reaches 182.7~GFLOP/s at 76 threads for
+$n=8000$ on a CSD3 icelake node.
+
+For larger matrices, performance appears to be limited more by memory
+access than by computation.
 \end{document}

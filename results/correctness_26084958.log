@@ -1,0 +1,2528 @@
+=== Building  VERSION=v5_openmp_blocked  NB=96 ===
+  node: cpu-q-516  arch: x86_64  gcc: gcc (Spack GCC) 11.2.0
+rm -f src/*.o lib/libcholesky.a example/example test/test_correctness test/test_correctness_strict test/benchmark
+rm -rf lib/
+/usr/local/software/spack/archive2/linux-scientific7-skylake_avx512/gcc-9.3.0/gcc-11.2.0-do3vmb6iub2hwfop75wwnhbsk3s2ucpi/bin/gcc -Wall -Wextra -std=gnu11 -I include -O3 -march=native -fopenmp -DBLOCK_NB=96 test/test_correctness.c src/cholesky_v5_openmp_blocked.c -lm -o test/test_correctness_strict
+  strict binary: test/test_correctness_strict: ELF 64-bit LSB executable, x86-64, version 1 (SYSV), dynamically linked, interpreter /lib64/ld-linux-x86-64.so.2, for GNU/Linux 3.2.0, not stripped
+/usr/local/software/spack/archive2/linux-scientific7-skylake_avx512/gcc-9.3.0/gcc-11.2.0-do3vmb6iub2hwfop75wwnhbsk3s2ucpi/bin/gcc -Wall -Wextra -std=gnu11 -I include -O3 -march=native -ffast-math -fopenmp -DBLOCK_NB=96 -c src/cholesky_v5_openmp_blocked.c -o src/cholesky_v5_openmp_blocked.o
+mkdir -p lib
+rm -f lib/libcholesky.a
+ar rcs lib/libcholesky.a src/cholesky_v5_openmp_blocked.o
+/usr/local/software/spack/archive2/linux-scientific7-skylake_avx512/gcc-9.3.0/gcc-11.2.0-do3vmb6iub2hwfop75wwnhbsk3s2ucpi/bin/gcc -Wall -Wextra -std=gnu11 -I include -O3 -march=native -ffast-math -fopenmp -DBLOCK_NB=96 test/test_correctness.c -Llib -lcholesky -lm -o test/test_correctness
+  perf binary:   test/test_correctness: ELF 64-bit LSB executable, x86-64, version 1 (SYSV), dynamically linked, interpreter /lib64/ld-linux-x86-64.so.2, for GNU/Linux 3.2.0, with debug_info, not stripped
+
+================================================================
+  build=strict  OMP_NUM_THREADS=1
+================================================================
+mphil_dis_cholesky: n=0 out of range [1, 100000]
+mphil_dis_cholesky: n=100001 out of range [1, 100000]
+=== mphil_dis_cholesky correctness tests ===
+    NB=96
+    TOL_EXACT=1e-10  TOL_KNOWN_L=1e-10  TOL_RECON=1e-08  TOL_REL_RECON=1e-10  TOL_SYM=1e-12  TOL_LOGDET=1e-06
+
+
+=== Test 1: 2x2 spec example ===
+  PASS  L[0,0]=2
+  PASS  L[1,0]=1
+  PASS  L[1,1]=5
+  PASS  L^T[0,1]=1
+  PASS  logdet=log(100)
+  PASS  elapsed>=0
+
+=== Test 2: 3x3 hand-computed ===
+  PASS  L[0,0]=2
+  PASS  L[1,0]=1
+  PASS  L[1,1]=sqrt2
+  PASS  L[2,0]=1
+  PASS  L[2,1]=0
+  PASS  L[2,2]=sqrt2
+  PASS  L^T[0,1]=1
+  PASS  L^T[0,2]=1
+  PASS  L^T[1,2]=0
+  PASS  logdet=log(16)
+  PASS  elapsed>=0
+
+=== Test 3: n=1 edge case ===
+  PASS  c[0]=3
+  PASS  elapsed>=0
+
+=== Test 4: bounds guard ===
+  PASS  n=0 → -1.0
+  PASS  n=100001 → -1.0
+  PASS  n=1 → >=0
+  PASS  n=1: c[0]=2
+
+=== Test 5: known-L  n=5 ===
+  PASS  elapsed>=0 n=5
+  PASS  n=5  max|L-L_ref|=2.220e-16 (tol=1e-10)
+  PASS  n=5  ||A-LL^T||_max=4.441e-16 (tol=1e-08)
+  PASS  n=5  ||A-LL^T||_F/||A||_F=9.592e-17 (tol=1e-10)
+  PASS  n=5  max_sym=0.000e+00 (tol=1e-12)
+  PASS  n=5  all L[i,i]>0  (min=1.071e+00)
+  PASS  n=5  |logdet_diff|=4.441e-16 (tol=1e-06)  got=3.01345 ref=3.01345
+
+=== Test 5: known-L  n=95 ===
+  PASS  elapsed>=0 n=95
+  PASS  n=95  max|L-L_ref|=5.912e-15 (tol=1e-10)
+  PASS  n=95  ||A-LL^T||_max=5.329e-15 (tol=1e-08)
+  PASS  n=95  ||A-LL^T||_F/||A||_F=2.822e-16 (tol=1e-10)
+  PASS  n=95  max_sym=0.000e+00 (tol=1e-12)
+  PASS  n=95  all L[i,i]>0  (min=1.004e+00)
+  PASS  n=95  |logdet_diff|=2.842e-14 (tol=1e-06)  got=51.1897 ref=51.1897
+
+=== Test 5: known-L  n=96 ===
+  PASS  elapsed>=0 n=96
+  PASS  n=96  max|L-L_ref|=5.912e-15 (tol=1e-10)
+  PASS  n=96  ||A-LL^T||_max=5.329e-15 (tol=1e-08)
+  PASS  n=96  ||A-LL^T||_F/||A||_F=2.837e-16 (tol=1e-10)
+  PASS  n=96  max_sym=0.000e+00 (tol=1e-12)
+  PASS  n=96  all L[i,i]>0  (min=1.004e+00)
+  PASS  n=96  |logdet_diff|=2.842e-14 (tol=1e-06)  got=51.9897 ref=51.9897
+
+=== Test 5: known-L  n=97 ===
+  PASS  elapsed>=0 n=97
+  PASS  n=97  max|L-L_ref|=5.912e-15 (tol=1e-10)
+  PASS  n=97  ||A-LL^T||_max=5.329e-15 (tol=1e-08)
+  PASS  n=97  ||A-LL^T||_F/||A||_F=2.791e-16 (tol=1e-10)
+  PASS  n=97  max_sym=0.000e+00 (tol=1e-12)
+  PASS  n=97  all L[i,i]>0  (min=1.004e+00)
+  PASS  n=97  |logdet_diff|=3.553e-14 (tol=1e-06)  got=52.3372 ref=52.3372
+
+=== Test 5: known-L  n=191 ===
+  PASS  elapsed>=0 n=191
+  PASS  n=191  max|L-L_ref|=2.084e-14 (tol=1e-10)
+  PASS  n=191  ||A-LL^T||_max=7.105e-15 (tol=1e-08)
+  PASS  n=191  ||A-LL^T||_F/||A||_F=2.950e-16 (tol=1e-10)
+  PASS  n=191  max_sym=0.000e+00 (tol=1e-12)
+  PASS  n=191  all L[i,i]>0  (min=1.004e+00)
+  PASS  n=191  |logdet_diff|=2.416e-13 (tol=1e-06)  got=103.242 ref=103.242
+
+=== Test 5: known-L  n=192 ===
+  PASS  elapsed>=0 n=192
+  PASS  n=192  max|L-L_ref|=2.084e-14 (tol=1e-10)
+  PASS  n=192  ||A-LL^T||_max=7.105e-15 (tol=1e-08)
+  PASS  n=192  ||A-LL^T||_F/||A||_F=2.954e-16 (tol=1e-10)
+  PASS  n=192  max_sym=0.000e+00 (tol=1e-12)
+  PASS  n=192  all L[i,i]>0  (min=1.004e+00)
+  PASS  n=192  |logdet_diff|=2.416e-13 (tol=1e-06)  got=103.569 ref=103.569
+
+=== Test 5: known-L  n=193 ===
+  PASS  elapsed>=0 n=193
+  PASS  n=193  max|L-L_ref|=2.164e-14 (tol=1e-10)
+  PASS  n=193  ||A-LL^T||_max=7.105e-15 (tol=1e-08)
+  PASS  n=193  ||A-LL^T||_F/||A||_F=2.963e-16 (tol=1e-10)
+  PASS  n=193  max_sym=0.000e+00 (tol=1e-12)
+  PASS  n=193  all L[i,i]>0  (min=1.004e+00)
+  PASS  n=193  |logdet_diff|=2.558e-13 (tol=1e-06)  got=104.365 ref=104.365
+
+=== Test 5: known-L  n=255 ===
+  PASS  elapsed>=0 n=255
+  PASS  n=255  max|L-L_ref|=3.847e-14 (tol=1e-10)
+  PASS  n=255  ||A-LL^T||_max=1.243e-14 (tol=1e-08)
+  PASS  n=255  ||A-LL^T||_F/||A||_F=3.473e-16 (tol=1e-10)
+  PASS  n=255  max_sym=0.000e+00 (tol=1e-12)
+  PASS  n=255  all L[i,i]>0  (min=1.004e+00)
+  PASS  n=255  |logdet_diff|=5.116e-13 (tol=1e-06)  got=137.46 ref=137.46
+
+=== Test 5: known-L  n=256 ===
+  PASS  elapsed>=0 n=256
+  PASS  n=256  max|L-L_ref|=3.847e-14 (tol=1e-10)
+  PASS  n=256  ||A-LL^T||_max=1.243e-14 (tol=1e-08)
+  PASS  n=256  ||A-LL^T||_F/||A||_F=3.480e-16 (tol=1e-10)
+  PASS  n=256  max_sym=0.000e+00 (tol=1e-12)
+  PASS  n=256  all L[i,i]>0  (min=1.004e+00)
+  PASS  n=256  |logdet_diff|=5.400e-13 (tol=1e-06)  got=138.27 ref=138.27
+
+=== Test 5: known-L  n=257 ===
+  PASS  elapsed>=0 n=257
+  PASS  n=257  max|L-L_ref|=3.847e-14 (tol=1e-10)
+  PASS  n=257  ||A-LL^T||_max=1.243e-14 (tol=1e-08)
+  PASS  n=257  ||A-LL^T||_F/||A||_F=3.476e-16 (tol=1e-10)
+  PASS  n=257  max_sym=0.000e+00 (tol=1e-12)
+  PASS  n=257  all L[i,i]>0  (min=1.004e+00)
+  PASS  n=257  |logdet_diff|=5.116e-13 (tol=1e-06)  got=138.774 ref=138.774
+
+=== Test 6: stressed diagonal  n=32  diag 1..1e-12 ===
+  PASS  stressed n=32  max|L-L_ref|=0.000e+00 (tol=1e-10)
+  PASS  stressed n=32  ||A-LL^T||_max=0.000e+00 (tol=1e-08)
+  PASS  stressed n=32  ||A-LL^T||_F/||A||_F=0.000e+00 (tol=1e-10)
+  PASS  stressed n=32  max_sym=0.000e+00 (tol=1e-12)
+  PASS  stressed n=32  all L[i,i]>0  (min=1.000e-12)
+  PASS  stressed n=32  |logdet_diff|=0.000e+00 (tol=1e-06)  got=-884.193 ref=-884.193
+
+=== Test 6: stressed diagonal  n=96  diag 1..1e-12 ===
+  PASS  stressed n=96  max|L-L_ref|=0.000e+00 (tol=1e-10)
+  PASS  stressed n=96  ||A-LL^T||_max=0.000e+00 (tol=1e-08)
+  PASS  stressed n=96  ||A-LL^T||_F/||A||_F=0.000e+00 (tol=1e-10)
+  PASS  stressed n=96  max_sym=0.000e+00 (tol=1e-12)
+  PASS  stressed n=96  all L[i,i]>0  (min=1.000e-12)
+  PASS  stressed n=96  |logdet_diff|=0.000e+00 (tol=1e-06)  got=-2652.58 ref=-2652.58
+
+=== Test 7: corr()  n=50 ===
+  PASS  elapsed>=0 n=50
+  PASS  corr n=50  ||A-LL^T||_max=6.661e-16 (tol=1e-08)
+  PASS  corr n=50  ||A-LL^T||_F/||A||_F=1.728e-16 (tol=1e-10)
+  PASS  corr n=50  max_sym=0.000e+00 (tol=1e-12)
+  PASS  corr n=50  all L[i,i]>0  (min=1.322e-01)
+  PASS  corr n=50  |logdet_diff|=1.646e-11 (tol=1e-06)  got=-196.105 ref=-196.105
+
+=== Test 7: corr()  n=200 ===
+  PASS  elapsed>=0 n=200
+  PASS  corr n=200  ||A-LL^T||_max=1.110e-15 (tol=1e-08)
+  PASS  corr n=200  ||A-LL^T||_F/||A||_F=2.435e-16 (tol=1e-10)
+  PASS  corr n=200  max_sym=0.000e+00 (tol=1e-12)
+  PASS  corr n=200  all L[i,i]>0  (min=1.092e-01)
+  PASS  corr n=200  |logdet_diff|=4.502e-11 (tol=1e-06)  got=-877.103 ref=-877.103
+
+=== Test 7: corr()  n=500 ===
+  PASS  elapsed>=0 n=500
+  PASS  corr n=500  ||A-LL^T||_max=1.887e-15 (tol=1e-08)
+  PASS  corr n=500  ||A-LL^T||_F/||A||_F=3.855e-16 (tol=1e-10)
+  PASS  corr n=500  max_sym=0.000e+00 (tol=1e-12)
+  PASS  corr n=500  all L[i,i]>0  (min=1.041e-01)
+  INFO  corr n=500  logdet=-2251.671388 (no reference)
+
+=== Test 8: multi-thread  n=96 ===
+  PASS  n=96  nt=2 vs nt=1  max|diff|=0.000e+00 (tol=1e-10)
+  PASS  n=96 nt=2  ||A-LL^T||_max=5.329e-15 (tol=1e-08)
+  PASS  n=96 nt=2  ||A-LL^T||_F/||A||_F=2.837e-16 (tol=1e-10)
+  PASS  n=96 nt=2  max_sym=0.000e+00 (tol=1e-12)
+  PASS  n=96 nt=2  all L[i,i]>0  (min=1.004e+00)
+  INFO  n=96 nt=2  logdet=51.98967287 (no reference)
+  PASS  n=96  nt=4 vs nt=1  max|diff|=0.000e+00 (tol=1e-10)
+  PASS  n=96 nt=4  ||A-LL^T||_max=5.329e-15 (tol=1e-08)
+  PASS  n=96 nt=4  ||A-LL^T||_F/||A||_F=2.837e-16 (tol=1e-10)
+  PASS  n=96 nt=4  max_sym=0.000e+00 (tol=1e-12)
+  PASS  n=96 nt=4  all L[i,i]>0  (min=1.004e+00)
+  INFO  n=96 nt=4  logdet=51.98967287 (no reference)
+  PASS  n=96  nt=8 vs nt=1  max|diff|=0.000e+00 (tol=1e-10)
+  PASS  n=96 nt=8  ||A-LL^T||_max=5.329e-15 (tol=1e-08)
+  PASS  n=96 nt=8  ||A-LL^T||_F/||A||_F=2.837e-16 (tol=1e-10)
+  PASS  n=96 nt=8  max_sym=0.000e+00 (tol=1e-12)
+  PASS  n=96 nt=8  all L[i,i]>0  (min=1.004e+00)
+  INFO  n=96 nt=8  logdet=51.98967287 (no reference)
+  PASS  n=96  nt=76 vs nt=1  max|diff|=0.000e+00 (tol=1e-10)
+  PASS  n=96 nt=76  ||A-LL^T||_max=5.329e-15 (tol=1e-08)
+  PASS  n=96 nt=76  ||A-LL^T||_F/||A||_F=2.837e-16 (tol=1e-10)
+  PASS  n=96 nt=76  max_sym=0.000e+00 (tol=1e-12)
+  PASS  n=96 nt=76  all L[i,i]>0  (min=1.004e+00)
+  INFO  n=96 nt=76  logdet=51.98967287 (no reference)
+
+=== Test 8: multi-thread  n=200 ===
+  PASS  n=200  nt=2 vs nt=1  max|diff|=0.000e+00 (tol=1e-10)
+  PASS  n=200 nt=2  ||A-LL^T||_max=8.882e-15 (tol=1e-08)
+  PASS  n=200 nt=2  ||A-LL^T||_F/||A||_F=3.017e-16 (tol=1e-10)
+  PASS  n=200 nt=2  max_sym=0.000e+00 (tol=1e-12)
+  PASS  n=200 nt=2  all L[i,i]>0  (min=1.004e+00)
+  INFO  n=200 nt=2  logdet=108.1486632 (no reference)
+  PASS  n=200  nt=4 vs nt=1  max|diff|=0.000e+00 (tol=1e-10)
+  PASS  n=200 nt=4  ||A-LL^T||_max=8.882e-15 (tol=1e-08)
+  PASS  n=200 nt=4  ||A-LL^T||_F/||A||_F=3.017e-16 (tol=1e-10)
+  PASS  n=200 nt=4  max_sym=0.000e+00 (tol=1e-12)
+  PASS  n=200 nt=4  all L[i,i]>0  (min=1.004e+00)
+  INFO  n=200 nt=4  logdet=108.1486632 (no reference)
+  PASS  n=200  nt=8 vs nt=1  max|diff|=0.000e+00 (tol=1e-10)
+  PASS  n=200 nt=8  ||A-LL^T||_max=8.882e-15 (tol=1e-08)
+  PASS  n=200 nt=8  ||A-LL^T||_F/||A||_F=3.017e-16 (tol=1e-10)
+  PASS  n=200 nt=8  max_sym=0.000e+00 (tol=1e-12)
+  PASS  n=200 nt=8  all L[i,i]>0  (min=1.004e+00)
+  INFO  n=200 nt=8  logdet=108.1486632 (no reference)
+  PASS  n=200  nt=76 vs nt=1  max|diff|=0.000e+00 (tol=1e-10)
+  PASS  n=200 nt=76  ||A-LL^T||_max=8.882e-15 (tol=1e-08)
+  PASS  n=200 nt=76  ||A-LL^T||_F/||A||_F=3.017e-16 (tol=1e-10)
+  PASS  n=200 nt=76  max_sym=0.000e+00 (tol=1e-12)
+  PASS  n=200 nt=76  all L[i,i]>0  (min=1.004e+00)
+  INFO  n=200 nt=76  logdet=108.1486632 (no reference)
+
+=== Test 8: multi-thread  n=500 ===
+  PASS  n=500  nt=2 vs nt=1  max|diff|=0.000e+00 (tol=1e-10)
+  PASS  n=500 nt=2  ||A-LL^T||_max=3.908e-14 (tol=1e-08)
+  PASS  n=500 nt=2  ||A-LL^T||_F/||A||_F=4.773e-16 (tol=1e-10)
+  PASS  n=500 nt=2  max_sym=0.000e+00 (tol=1e-12)
+  PASS  n=500 nt=2  all L[i,i]>0  (min=1.000e+00)
+  INFO  n=500 nt=2  logdet=269.319591 (no reference)
+  PASS  n=500  nt=4 vs nt=1  max|diff|=0.000e+00 (tol=1e-10)
+  PASS  n=500 nt=4  ||A-LL^T||_max=3.908e-14 (tol=1e-08)
+  PASS  n=500 nt=4  ||A-LL^T||_F/||A||_F=4.773e-16 (tol=1e-10)
+  PASS  n=500 nt=4  max_sym=0.000e+00 (tol=1e-12)
+  PASS  n=500 nt=4  all L[i,i]>0  (min=1.000e+00)
+  INFO  n=500 nt=4  logdet=269.319591 (no reference)
+  PASS  n=500  nt=8 vs nt=1  max|diff|=0.000e+00 (tol=1e-10)
+  PASS  n=500 nt=8  ||A-LL^T||_max=3.908e-14 (tol=1e-08)
+  PASS  n=500 nt=8  ||A-LL^T||_F/||A||_F=4.773e-16 (tol=1e-10)
+  PASS  n=500 nt=8  max_sym=0.000e+00 (tol=1e-12)
+  PASS  n=500 nt=8  all L[i,i]>0  (min=1.000e+00)
+  INFO  n=500 nt=8  logdet=269.319591 (no reference)
+  PASS  n=500  nt=76 vs nt=1  max|diff|=0.000e+00 (tol=1e-10)
+  PASS  n=500 nt=76  ||A-LL^T||_max=3.908e-14 (tol=1e-08)
+  PASS  n=500 nt=76  ||A-LL^T||_F/||A||_F=4.773e-16 (tol=1e-10)
+  PASS  n=500 nt=76  max_sym=0.000e+00 (tol=1e-12)
+  PASS  n=500 nt=76  all L[i,i]>0  (min=1.000e+00)
+  INFO  n=500 nt=76  logdet=269.319591 (no reference)
+
+--- 182 / 182 tests passed ---
+
+================================================================
+  build=strict  OMP_NUM_THREADS=2
+================================================================
+mphil_dis_cholesky: n=0 out of range [1, 100000]
+mphil_dis_cholesky: n=100001 out of range [1, 100000]
+=== mphil_dis_cholesky correctness tests ===
+    NB=96
+    TOL_EXACT=1e-10  TOL_KNOWN_L=1e-10  TOL_RECON=1e-08  TOL_REL_RECON=1e-10  TOL_SYM=1e-12  TOL_LOGDET=1e-06
+
+
+=== Test 1: 2x2 spec example ===
+  PASS  L[0,0]=2
+  PASS  L[1,0]=1
+  PASS  L[1,1]=5
+  PASS  L^T[0,1]=1
+  PASS  logdet=log(100)
+  PASS  elapsed>=0
+
+=== Test 2: 3x3 hand-computed ===
+  PASS  L[0,0]=2
+  PASS  L[1,0]=1
+  PASS  L[1,1]=sqrt2
+  PASS  L[2,0]=1
+  PASS  L[2,1]=0
+  PASS  L[2,2]=sqrt2
+  PASS  L^T[0,1]=1
+  PASS  L^T[0,2]=1
+  PASS  L^T[1,2]=0
+  PASS  logdet=log(16)
+  PASS  elapsed>=0
+
+=== Test 3: n=1 edge case ===
+  PASS  c[0]=3
+  PASS  elapsed>=0
+
+=== Test 4: bounds guard ===
+  PASS  n=0 → -1.0
+  PASS  n=100001 → -1.0
+  PASS  n=1 → >=0
+  PASS  n=1: c[0]=2
+
+=== Test 5: known-L  n=5 ===
+  PASS  elapsed>=0 n=5
+  PASS  n=5  max|L-L_ref|=2.220e-16 (tol=1e-10)
+  PASS  n=5  ||A-LL^T||_max=4.441e-16 (tol=1e-08)
+  PASS  n=5  ||A-LL^T||_F/||A||_F=9.592e-17 (tol=1e-10)
+  PASS  n=5  max_sym=0.000e+00 (tol=1e-12)
+  PASS  n=5  all L[i,i]>0  (min=1.071e+00)
+  PASS  n=5  |logdet_diff|=4.441e-16 (tol=1e-06)  got=3.01345 ref=3.01345
+
+=== Test 5: known-L  n=95 ===
+  PASS  elapsed>=0 n=95
+  PASS  n=95  max|L-L_ref|=5.912e-15 (tol=1e-10)
+  PASS  n=95  ||A-LL^T||_max=5.329e-15 (tol=1e-08)
+  PASS  n=95  ||A-LL^T||_F/||A||_F=2.822e-16 (tol=1e-10)
+  PASS  n=95  max_sym=0.000e+00 (tol=1e-12)
+  PASS  n=95  all L[i,i]>0  (min=1.004e+00)
+  PASS  n=95  |logdet_diff|=2.842e-14 (tol=1e-06)  got=51.1897 ref=51.1897
+
+=== Test 5: known-L  n=96 ===
+  PASS  elapsed>=0 n=96
+  PASS  n=96  max|L-L_ref|=5.912e-15 (tol=1e-10)
+  PASS  n=96  ||A-LL^T||_max=5.329e-15 (tol=1e-08)
+  PASS  n=96  ||A-LL^T||_F/||A||_F=2.837e-16 (tol=1e-10)
+  PASS  n=96  max_sym=0.000e+00 (tol=1e-12)
+  PASS  n=96  all L[i,i]>0  (min=1.004e+00)
+  PASS  n=96  |logdet_diff|=2.842e-14 (tol=1e-06)  got=51.9897 ref=51.9897
+
+=== Test 5: known-L  n=97 ===
+  PASS  elapsed>=0 n=97
+  PASS  n=97  max|L-L_ref|=5.912e-15 (tol=1e-10)
+  PASS  n=97  ||A-LL^T||_max=5.329e-15 (tol=1e-08)
+  PASS  n=97  ||A-LL^T||_F/||A||_F=2.791e-16 (tol=1e-10)
+  PASS  n=97  max_sym=0.000e+00 (tol=1e-12)
+  PASS  n=97  all L[i,i]>0  (min=1.004e+00)
+  PASS  n=97  |logdet_diff|=3.553e-14 (tol=1e-06)  got=52.3372 ref=52.3372
+
+=== Test 5: known-L  n=191 ===
+  PASS  elapsed>=0 n=191
+  PASS  n=191  max|L-L_ref|=2.084e-14 (tol=1e-10)
+  PASS  n=191  ||A-LL^T||_max=7.105e-15 (tol=1e-08)
+  PASS  n=191  ||A-LL^T||_F/||A||_F=2.950e-16 (tol=1e-10)
+  PASS  n=191  max_sym=0.000e+00 (tol=1e-12)
+  PASS  n=191  all L[i,i]>0  (min=1.004e+00)
+  PASS  n=191  |logdet_diff|=2.416e-13 (tol=1e-06)  got=103.242 ref=103.242
+
+=== Test 5: known-L  n=192 ===
+  PASS  elapsed>=0 n=192
+  PASS  n=192  max|L-L_ref|=2.084e-14 (tol=1e-10)
+  PASS  n=192  ||A-LL^T||_max=7.105e-15 (tol=1e-08)
+  PASS  n=192  ||A-LL^T||_F/||A||_F=2.954e-16 (tol=1e-10)
+  PASS  n=192  max_sym=0.000e+00 (tol=1e-12)
+  PASS  n=192  all L[i,i]>0  (min=1.004e+00)
+  PASS  n=192  |logdet_diff|=2.416e-13 (tol=1e-06)  got=103.569 ref=103.569
+
+=== Test 5: known-L  n=193 ===
+  PASS  elapsed>=0 n=193
+  PASS  n=193  max|L-L_ref|=2.164e-14 (tol=1e-10)
+  PASS  n=193  ||A-LL^T||_max=7.105e-15 (tol=1e-08)
+  PASS  n=193  ||A-LL^T||_F/||A||_F=2.963e-16 (tol=1e-10)
+  PASS  n=193  max_sym=0.000e+00 (tol=1e-12)
+  PASS  n=193  all L[i,i]>0  (min=1.004e+00)
+  PASS  n=193  |logdet_diff|=2.558e-13 (tol=1e-06)  got=104.365 ref=104.365
+
+=== Test 5: known-L  n=255 ===
+  PASS  elapsed>=0 n=255
+  PASS  n=255  max|L-L_ref|=3.847e-14 (tol=1e-10)
+  PASS  n=255  ||A-LL^T||_max=1.243e-14 (tol=1e-08)
+  PASS  n=255  ||A-LL^T||_F/||A||_F=3.473e-16 (tol=1e-10)
+  PASS  n=255  max_sym=0.000e+00 (tol=1e-12)
+  PASS  n=255  all L[i,i]>0  (min=1.004e+00)
+  PASS  n=255  |logdet_diff|=5.116e-13 (tol=1e-06)  got=137.46 ref=137.46
+
+=== Test 5: known-L  n=256 ===
+  PASS  elapsed>=0 n=256
+  PASS  n=256  max|L-L_ref|=3.847e-14 (tol=1e-10)
+  PASS  n=256  ||A-LL^T||_max=1.243e-14 (tol=1e-08)
+  PASS  n=256  ||A-LL^T||_F/||A||_F=3.480e-16 (tol=1e-10)
+  PASS  n=256  max_sym=0.000e+00 (tol=1e-12)
+  PASS  n=256  all L[i,i]>0  (min=1.004e+00)
+  PASS  n=256  |logdet_diff|=5.400e-13 (tol=1e-06)  got=138.27 ref=138.27
+
+=== Test 5: known-L  n=257 ===
+  PASS  elapsed>=0 n=257
+  PASS  n=257  max|L-L_ref|=3.847e-14 (tol=1e-10)
+  PASS  n=257  ||A-LL^T||_max=1.243e-14 (tol=1e-08)
+  PASS  n=257  ||A-LL^T||_F/||A||_F=3.476e-16 (tol=1e-10)
+  PASS  n=257  max_sym=0.000e+00 (tol=1e-12)
+  PASS  n=257  all L[i,i]>0  (min=1.004e+00)
+  PASS  n=257  |logdet_diff|=5.116e-13 (tol=1e-06)  got=138.774 ref=138.774
+
+=== Test 6: stressed diagonal  n=32  diag 1..1e-12 ===
+  PASS  stressed n=32  max|L-L_ref|=0.000e+00 (tol=1e-10)
+  PASS  stressed n=32  ||A-LL^T||_max=0.000e+00 (tol=1e-08)
+  PASS  stressed n=32  ||A-LL^T||_F/||A||_F=0.000e+00 (tol=1e-10)
+  PASS  stressed n=32  max_sym=0.000e+00 (tol=1e-12)
+  PASS  stressed n=32  all L[i,i]>0  (min=1.000e-12)
+  PASS  stressed n=32  |logdet_diff|=0.000e+00 (tol=1e-06)  got=-884.193 ref=-884.193
+
+=== Test 6: stressed diagonal  n=96  diag 1..1e-12 ===
+  PASS  stressed n=96  max|L-L_ref|=0.000e+00 (tol=1e-10)
+  PASS  stressed n=96  ||A-LL^T||_max=0.000e+00 (tol=1e-08)
+  PASS  stressed n=96  ||A-LL^T||_F/||A||_F=0.000e+00 (tol=1e-10)
+  PASS  stressed n=96  max_sym=0.000e+00 (tol=1e-12)
+  PASS  stressed n=96  all L[i,i]>0  (min=1.000e-12)
+  PASS  stressed n=96  |logdet_diff|=0.000e+00 (tol=1e-06)  got=-2652.58 ref=-2652.58
+
+=== Test 7: corr()  n=50 ===
+  PASS  elapsed>=0 n=50
+  PASS  corr n=50  ||A-LL^T||_max=6.661e-16 (tol=1e-08)
+  PASS  corr n=50  ||A-LL^T||_F/||A||_F=1.728e-16 (tol=1e-10)
+  PASS  corr n=50  max_sym=0.000e+00 (tol=1e-12)
+  PASS  corr n=50  all L[i,i]>0  (min=1.322e-01)
+  PASS  corr n=50  |logdet_diff|=1.646e-11 (tol=1e-06)  got=-196.105 ref=-196.105
+
+=== Test 7: corr()  n=200 ===
+  PASS  elapsed>=0 n=200
+  PASS  corr n=200  ||A-LL^T||_max=1.110e-15 (tol=1e-08)
+  PASS  corr n=200  ||A-LL^T||_F/||A||_F=2.435e-16 (tol=1e-10)
+  PASS  corr n=200  max_sym=0.000e+00 (tol=1e-12)
+  PASS  corr n=200  all L[i,i]>0  (min=1.092e-01)
+  PASS  corr n=200  |logdet_diff|=4.502e-11 (tol=1e-06)  got=-877.103 ref=-877.103
+
+=== Test 7: corr()  n=500 ===
+  PASS  elapsed>=0 n=500
+  PASS  corr n=500  ||A-LL^T||_max=1.887e-15 (tol=1e-08)
+  PASS  corr n=500  ||A-LL^T||_F/||A||_F=3.855e-16 (tol=1e-10)
+  PASS  corr n=500  max_sym=0.000e+00 (tol=1e-12)
+  PASS  corr n=500  all L[i,i]>0  (min=1.041e-01)
+  INFO  corr n=500  logdet=-2251.671388 (no reference)
+
+=== Test 8: multi-thread  n=96 ===
+  PASS  n=96  nt=2 vs nt=1  max|diff|=0.000e+00 (tol=1e-10)
+  PASS  n=96 nt=2  ||A-LL^T||_max=5.329e-15 (tol=1e-08)
+  PASS  n=96 nt=2  ||A-LL^T||_F/||A||_F=2.837e-16 (tol=1e-10)
+  PASS  n=96 nt=2  max_sym=0.000e+00 (tol=1e-12)
+  PASS  n=96 nt=2  all L[i,i]>0  (min=1.004e+00)
+  INFO  n=96 nt=2  logdet=51.98967287 (no reference)
+  PASS  n=96  nt=4 vs nt=1  max|diff|=0.000e+00 (tol=1e-10)
+  PASS  n=96 nt=4  ||A-LL^T||_max=5.329e-15 (tol=1e-08)
+  PASS  n=96 nt=4  ||A-LL^T||_F/||A||_F=2.837e-16 (tol=1e-10)
+  PASS  n=96 nt=4  max_sym=0.000e+00 (tol=1e-12)
+  PASS  n=96 nt=4  all L[i,i]>0  (min=1.004e+00)
+  INFO  n=96 nt=4  logdet=51.98967287 (no reference)
+  PASS  n=96  nt=8 vs nt=1  max|diff|=0.000e+00 (tol=1e-10)
+  PASS  n=96 nt=8  ||A-LL^T||_max=5.329e-15 (tol=1e-08)
+  PASS  n=96 nt=8  ||A-LL^T||_F/||A||_F=2.837e-16 (tol=1e-10)
+  PASS  n=96 nt=8  max_sym=0.000e+00 (tol=1e-12)
+  PASS  n=96 nt=8  all L[i,i]>0  (min=1.004e+00)
+  INFO  n=96 nt=8  logdet=51.98967287 (no reference)
+  PASS  n=96  nt=76 vs nt=1  max|diff|=0.000e+00 (tol=1e-10)
+  PASS  n=96 nt=76  ||A-LL^T||_max=5.329e-15 (tol=1e-08)
+  PASS  n=96 nt=76  ||A-LL^T||_F/||A||_F=2.837e-16 (tol=1e-10)
+  PASS  n=96 nt=76  max_sym=0.000e+00 (tol=1e-12)
+  PASS  n=96 nt=76  all L[i,i]>0  (min=1.004e+00)
+  INFO  n=96 nt=76  logdet=51.98967287 (no reference)
+
+=== Test 8: multi-thread  n=200 ===
+  PASS  n=200  nt=2 vs nt=1  max|diff|=0.000e+00 (tol=1e-10)
+  PASS  n=200 nt=2  ||A-LL^T||_max=8.882e-15 (tol=1e-08)
+  PASS  n=200 nt=2  ||A-LL^T||_F/||A||_F=3.017e-16 (tol=1e-10)
+  PASS  n=200 nt=2  max_sym=0.000e+00 (tol=1e-12)
+  PASS  n=200 nt=2  all L[i,i]>0  (min=1.004e+00)
+  INFO  n=200 nt=2  logdet=108.1486632 (no reference)
+  PASS  n=200  nt=4 vs nt=1  max|diff|=0.000e+00 (tol=1e-10)
+  PASS  n=200 nt=4  ||A-LL^T||_max=8.882e-15 (tol=1e-08)
+  PASS  n=200 nt=4  ||A-LL^T||_F/||A||_F=3.017e-16 (tol=1e-10)
+  PASS  n=200 nt=4  max_sym=0.000e+00 (tol=1e-12)
+  PASS  n=200 nt=4  all L[i,i]>0  (min=1.004e+00)
+  INFO  n=200 nt=4  logdet=108.1486632 (no reference)
+  PASS  n=200  nt=8 vs nt=1  max|diff|=0.000e+00 (tol=1e-10)
+  PASS  n=200 nt=8  ||A-LL^T||_max=8.882e-15 (tol=1e-08)
+  PASS  n=200 nt=8  ||A-LL^T||_F/||A||_F=3.017e-16 (tol=1e-10)
+  PASS  n=200 nt=8  max_sym=0.000e+00 (tol=1e-12)
+  PASS  n=200 nt=8  all L[i,i]>0  (min=1.004e+00)
+  INFO  n=200 nt=8  logdet=108.1486632 (no reference)
+  PASS  n=200  nt=76 vs nt=1  max|diff|=0.000e+00 (tol=1e-10)
+  PASS  n=200 nt=76  ||A-LL^T||_max=8.882e-15 (tol=1e-08)
+  PASS  n=200 nt=76  ||A-LL^T||_F/||A||_F=3.017e-16 (tol=1e-10)
+  PASS  n=200 nt=76  max_sym=0.000e+00 (tol=1e-12)
+  PASS  n=200 nt=76  all L[i,i]>0  (min=1.004e+00)
+  INFO  n=200 nt=76  logdet=108.1486632 (no reference)
+
+=== Test 8: multi-thread  n=500 ===
+  PASS  n=500  nt=2 vs nt=1  max|diff|=0.000e+00 (tol=1e-10)
+  PASS  n=500 nt=2  ||A-LL^T||_max=3.908e-14 (tol=1e-08)
+  PASS  n=500 nt=2  ||A-LL^T||_F/||A||_F=4.773e-16 (tol=1e-10)
+  PASS  n=500 nt=2  max_sym=0.000e+00 (tol=1e-12)
+  PASS  n=500 nt=2  all L[i,i]>0  (min=1.000e+00)
+  INFO  n=500 nt=2  logdet=269.319591 (no reference)
+  PASS  n=500  nt=4 vs nt=1  max|diff|=0.000e+00 (tol=1e-10)
+  PASS  n=500 nt=4  ||A-LL^T||_max=3.908e-14 (tol=1e-08)
+  PASS  n=500 nt=4  ||A-LL^T||_F/||A||_F=4.773e-16 (tol=1e-10)
+  PASS  n=500 nt=4  max_sym=0.000e+00 (tol=1e-12)
+  PASS  n=500 nt=4  all L[i,i]>0  (min=1.000e+00)
+  INFO  n=500 nt=4  logdet=269.319591 (no reference)
+  PASS  n=500  nt=8 vs nt=1  max|diff|=0.000e+00 (tol=1e-10)
+  PASS  n=500 nt=8  ||A-LL^T||_max=3.908e-14 (tol=1e-08)
+  PASS  n=500 nt=8  ||A-LL^T||_F/||A||_F=4.773e-16 (tol=1e-10)
+  PASS  n=500 nt=8  max_sym=0.000e+00 (tol=1e-12)
+  PASS  n=500 nt=8  all L[i,i]>0  (min=1.000e+00)
+  INFO  n=500 nt=8  logdet=269.319591 (no reference)
+  PASS  n=500  nt=76 vs nt=1  max|diff|=0.000e+00 (tol=1e-10)
+  PASS  n=500 nt=76  ||A-LL^T||_max=3.908e-14 (tol=1e-08)
+  PASS  n=500 nt=76  ||A-LL^T||_F/||A||_F=4.773e-16 (tol=1e-10)
+  PASS  n=500 nt=76  max_sym=0.000e+00 (tol=1e-12)
+  PASS  n=500 nt=76  all L[i,i]>0  (min=1.000e+00)
+  INFO  n=500 nt=76  logdet=269.319591 (no reference)
+
+--- 182 / 182 tests passed ---
+
+================================================================
+  build=strict  OMP_NUM_THREADS=4
+================================================================
+mphil_dis_cholesky: n=0 out of range [1, 100000]
+mphil_dis_cholesky: n=100001 out of range [1, 100000]
+=== mphil_dis_cholesky correctness tests ===
+    NB=96
+    TOL_EXACT=1e-10  TOL_KNOWN_L=1e-10  TOL_RECON=1e-08  TOL_REL_RECON=1e-10  TOL_SYM=1e-12  TOL_LOGDET=1e-06
+
+
+=== Test 1: 2x2 spec example ===
+  PASS  L[0,0]=2
+  PASS  L[1,0]=1
+  PASS  L[1,1]=5
+  PASS  L^T[0,1]=1
+  PASS  logdet=log(100)
+  PASS  elapsed>=0
+
+=== Test 2: 3x3 hand-computed ===
+  PASS  L[0,0]=2
+  PASS  L[1,0]=1
+  PASS  L[1,1]=sqrt2
+  PASS  L[2,0]=1
+  PASS  L[2,1]=0
+  PASS  L[2,2]=sqrt2
+  PASS  L^T[0,1]=1
+  PASS  L^T[0,2]=1
+  PASS  L^T[1,2]=0
+  PASS  logdet=log(16)
+  PASS  elapsed>=0
+
+=== Test 3: n=1 edge case ===
+  PASS  c[0]=3
+  PASS  elapsed>=0
+
+=== Test 4: bounds guard ===
+  PASS  n=0 → -1.0
+  PASS  n=100001 → -1.0
+  PASS  n=1 → >=0
+  PASS  n=1: c[0]=2
+
+=== Test 5: known-L  n=5 ===
+  PASS  elapsed>=0 n=5
+  PASS  n=5  max|L-L_ref|=2.220e-16 (tol=1e-10)
+  PASS  n=5  ||A-LL^T||_max=4.441e-16 (tol=1e-08)
+  PASS  n=5  ||A-LL^T||_F/||A||_F=9.592e-17 (tol=1e-10)
+  PASS  n=5  max_sym=0.000e+00 (tol=1e-12)
+  PASS  n=5  all L[i,i]>0  (min=1.071e+00)
+  PASS  n=5  |logdet_diff|=4.441e-16 (tol=1e-06)  got=3.01345 ref=3.01345
+
+=== Test 5: known-L  n=95 ===
+  PASS  elapsed>=0 n=95
+  PASS  n=95  max|L-L_ref|=5.912e-15 (tol=1e-10)
+  PASS  n=95  ||A-LL^T||_max=5.329e-15 (tol=1e-08)
+  PASS  n=95  ||A-LL^T||_F/||A||_F=2.822e-16 (tol=1e-10)
+  PASS  n=95  max_sym=0.000e+00 (tol=1e-12)
+  PASS  n=95  all L[i,i]>0  (min=1.004e+00)
+  PASS  n=95  |logdet_diff|=2.842e-14 (tol=1e-06)  got=51.1897 ref=51.1897
+
+=== Test 5: known-L  n=96 ===
+  PASS  elapsed>=0 n=96
+  PASS  n=96  max|L-L_ref|=5.912e-15 (tol=1e-10)
+  PASS  n=96  ||A-LL^T||_max=5.329e-15 (tol=1e-08)
+  PASS  n=96  ||A-LL^T||_F/||A||_F=2.837e-16 (tol=1e-10)
+  PASS  n=96  max_sym=0.000e+00 (tol=1e-12)
+  PASS  n=96  all L[i,i]>0  (min=1.004e+00)
+  PASS  n=96  |logdet_diff|=2.842e-14 (tol=1e-06)  got=51.9897 ref=51.9897
+
+=== Test 5: known-L  n=97 ===
+  PASS  elapsed>=0 n=97
+  PASS  n=97  max|L-L_ref|=5.912e-15 (tol=1e-10)
+  PASS  n=97  ||A-LL^T||_max=5.329e-15 (tol=1e-08)
+  PASS  n=97  ||A-LL^T||_F/||A||_F=2.791e-16 (tol=1e-10)
+  PASS  n=97  max_sym=0.000e+00 (tol=1e-12)
+  PASS  n=97  all L[i,i]>0  (min=1.004e+00)
+  PASS  n=97  |logdet_diff|=3.553e-14 (tol=1e-06)  got=52.3372 ref=52.3372
+
+=== Test 5: known-L  n=191 ===
+  PASS  elapsed>=0 n=191
+  PASS  n=191  max|L-L_ref|=2.084e-14 (tol=1e-10)
+  PASS  n=191  ||A-LL^T||_max=7.105e-15 (tol=1e-08)
+  PASS  n=191  ||A-LL^T||_F/||A||_F=2.950e-16 (tol=1e-10)
+  PASS  n=191  max_sym=0.000e+00 (tol=1e-12)
+  PASS  n=191  all L[i,i]>0  (min=1.004e+00)
+  PASS  n=191  |logdet_diff|=2.416e-13 (tol=1e-06)  got=103.242 ref=103.242
+
+=== Test 5: known-L  n=192 ===
+  PASS  elapsed>=0 n=192
+  PASS  n=192  max|L-L_ref|=2.084e-14 (tol=1e-10)
+  PASS  n=192  ||A-LL^T||_max=7.105e-15 (tol=1e-08)
+  PASS  n=192  ||A-LL^T||_F/||A||_F=2.954e-16 (tol=1e-10)
+  PASS  n=192  max_sym=0.000e+00 (tol=1e-12)
+  PASS  n=192  all L[i,i]>0  (min=1.004e+00)
+  PASS  n=192  |logdet_diff|=2.416e-13 (tol=1e-06)  got=103.569 ref=103.569
+
+=== Test 5: known-L  n=193 ===
+  PASS  elapsed>=0 n=193
+  PASS  n=193  max|L-L_ref|=2.164e-14 (tol=1e-10)
+  PASS  n=193  ||A-LL^T||_max=7.105e-15 (tol=1e-08)
+  PASS  n=193  ||A-LL^T||_F/||A||_F=2.963e-16 (tol=1e-10)
+  PASS  n=193  max_sym=0.000e+00 (tol=1e-12)
+  PASS  n=193  all L[i,i]>0  (min=1.004e+00)
+  PASS  n=193  |logdet_diff|=2.558e-13 (tol=1e-06)  got=104.365 ref=104.365
+
+=== Test 5: known-L  n=255 ===
+  PASS  elapsed>=0 n=255
+  PASS  n=255  max|L-L_ref|=3.847e-14 (tol=1e-10)
+  PASS  n=255  ||A-LL^T||_max=1.243e-14 (tol=1e-08)
+  PASS  n=255  ||A-LL^T||_F/||A||_F=3.473e-16 (tol=1e-10)
+  PASS  n=255  max_sym=0.000e+00 (tol=1e-12)
+  PASS  n=255  all L[i,i]>0  (min=1.004e+00)
+  PASS  n=255  |logdet_diff|=5.116e-13 (tol=1e-06)  got=137.46 ref=137.46
+
+=== Test 5: known-L  n=256 ===
+  PASS  elapsed>=0 n=256
+  PASS  n=256  max|L-L_ref|=3.847e-14 (tol=1e-10)
+  PASS  n=256  ||A-LL^T||_max=1.243e-14 (tol=1e-08)
+  PASS  n=256  ||A-LL^T||_F/||A||_F=3.480e-16 (tol=1e-10)
+  PASS  n=256  max_sym=0.000e+00 (tol=1e-12)
+  PASS  n=256  all L[i,i]>0  (min=1.004e+00)
+  PASS  n=256  |logdet_diff|=5.400e-13 (tol=1e-06)  got=138.27 ref=138.27
+
+=== Test 5: known-L  n=257 ===
+  PASS  elapsed>=0 n=257
+  PASS  n=257  max|L-L_ref|=3.847e-14 (tol=1e-10)
+  PASS  n=257  ||A-LL^T||_max=1.243e-14 (tol=1e-08)
+  PASS  n=257  ||A-LL^T||_F/||A||_F=3.476e-16 (tol=1e-10)
+  PASS  n=257  max_sym=0.000e+00 (tol=1e-12)
+  PASS  n=257  all L[i,i]>0  (min=1.004e+00)
+  PASS  n=257  |logdet_diff|=5.116e-13 (tol=1e-06)  got=138.774 ref=138.774
+
+=== Test 6: stressed diagonal  n=32  diag 1..1e-12 ===
+  PASS  stressed n=32  max|L-L_ref|=0.000e+00 (tol=1e-10)
+  PASS  stressed n=32  ||A-LL^T||_max=0.000e+00 (tol=1e-08)
+  PASS  stressed n=32  ||A-LL^T||_F/||A||_F=0.000e+00 (tol=1e-10)
+  PASS  stressed n=32  max_sym=0.000e+00 (tol=1e-12)
+  PASS  stressed n=32  all L[i,i]>0  (min=1.000e-12)
+  PASS  stressed n=32  |logdet_diff|=0.000e+00 (tol=1e-06)  got=-884.193 ref=-884.193
+
+=== Test 6: stressed diagonal  n=96  diag 1..1e-12 ===
+  PASS  stressed n=96  max|L-L_ref|=0.000e+00 (tol=1e-10)
+  PASS  stressed n=96  ||A-LL^T||_max=0.000e+00 (tol=1e-08)
+  PASS  stressed n=96  ||A-LL^T||_F/||A||_F=0.000e+00 (tol=1e-10)
+  PASS  stressed n=96  max_sym=0.000e+00 (tol=1e-12)
+  PASS  stressed n=96  all L[i,i]>0  (min=1.000e-12)
+  PASS  stressed n=96  |logdet_diff|=0.000e+00 (tol=1e-06)  got=-2652.58 ref=-2652.58
+
+=== Test 7: corr()  n=50 ===
+  PASS  elapsed>=0 n=50
+  PASS  corr n=50  ||A-LL^T||_max=6.661e-16 (tol=1e-08)
+  PASS  corr n=50  ||A-LL^T||_F/||A||_F=1.728e-16 (tol=1e-10)
+  PASS  corr n=50  max_sym=0.000e+00 (tol=1e-12)
+  PASS  corr n=50  all L[i,i]>0  (min=1.322e-01)
+  PASS  corr n=50  |logdet_diff|=1.646e-11 (tol=1e-06)  got=-196.105 ref=-196.105
+
+=== Test 7: corr()  n=200 ===
+  PASS  elapsed>=0 n=200
+  PASS  corr n=200  ||A-LL^T||_max=1.110e-15 (tol=1e-08)
+  PASS  corr n=200  ||A-LL^T||_F/||A||_F=2.435e-16 (tol=1e-10)
+  PASS  corr n=200  max_sym=0.000e+00 (tol=1e-12)
+  PASS  corr n=200  all L[i,i]>0  (min=1.092e-01)
+  PASS  corr n=200  |logdet_diff|=4.502e-11 (tol=1e-06)  got=-877.103 ref=-877.103
+
+=== Test 7: corr()  n=500 ===
+  PASS  elapsed>=0 n=500
+  PASS  corr n=500  ||A-LL^T||_max=1.887e-15 (tol=1e-08)
+  PASS  corr n=500  ||A-LL^T||_F/||A||_F=3.855e-16 (tol=1e-10)
+  PASS  corr n=500  max_sym=0.000e+00 (tol=1e-12)
+  PASS  corr n=500  all L[i,i]>0  (min=1.041e-01)
+  INFO  corr n=500  logdet=-2251.671388 (no reference)
+
+=== Test 8: multi-thread  n=96 ===
+  PASS  n=96  nt=2 vs nt=1  max|diff|=0.000e+00 (tol=1e-10)
+  PASS  n=96 nt=2  ||A-LL^T||_max=5.329e-15 (tol=1e-08)
+  PASS  n=96 nt=2  ||A-LL^T||_F/||A||_F=2.837e-16 (tol=1e-10)
+  PASS  n=96 nt=2  max_sym=0.000e+00 (tol=1e-12)
+  PASS  n=96 nt=2  all L[i,i]>0  (min=1.004e+00)
+  INFO  n=96 nt=2  logdet=51.98967287 (no reference)
+  PASS  n=96  nt=4 vs nt=1  max|diff|=0.000e+00 (tol=1e-10)
+  PASS  n=96 nt=4  ||A-LL^T||_max=5.329e-15 (tol=1e-08)
+  PASS  n=96 nt=4  ||A-LL^T||_F/||A||_F=2.837e-16 (tol=1e-10)
+  PASS  n=96 nt=4  max_sym=0.000e+00 (tol=1e-12)
+  PASS  n=96 nt=4  all L[i,i]>0  (min=1.004e+00)
+  INFO  n=96 nt=4  logdet=51.98967287 (no reference)
+  PASS  n=96  nt=8 vs nt=1  max|diff|=0.000e+00 (tol=1e-10)
+  PASS  n=96 nt=8  ||A-LL^T||_max=5.329e-15 (tol=1e-08)
+  PASS  n=96 nt=8  ||A-LL^T||_F/||A||_F=2.837e-16 (tol=1e-10)
+  PASS  n=96 nt=8  max_sym=0.000e+00 (tol=1e-12)
+  PASS  n=96 nt=8  all L[i,i]>0  (min=1.004e+00)
+  INFO  n=96 nt=8  logdet=51.98967287 (no reference)
+  PASS  n=96  nt=76 vs nt=1  max|diff|=0.000e+00 (tol=1e-10)
+  PASS  n=96 nt=76  ||A-LL^T||_max=5.329e-15 (tol=1e-08)
+  PASS  n=96 nt=76  ||A-LL^T||_F/||A||_F=2.837e-16 (tol=1e-10)
+  PASS  n=96 nt=76  max_sym=0.000e+00 (tol=1e-12)
+  PASS  n=96 nt=76  all L[i,i]>0  (min=1.004e+00)
+  INFO  n=96 nt=76  logdet=51.98967287 (no reference)
+
+=== Test 8: multi-thread  n=200 ===
+  PASS  n=200  nt=2 vs nt=1  max|diff|=0.000e+00 (tol=1e-10)
+  PASS  n=200 nt=2  ||A-LL^T||_max=8.882e-15 (tol=1e-08)
+  PASS  n=200 nt=2  ||A-LL^T||_F/||A||_F=3.017e-16 (tol=1e-10)
+  PASS  n=200 nt=2  max_sym=0.000e+00 (tol=1e-12)
+  PASS  n=200 nt=2  all L[i,i]>0  (min=1.004e+00)
+  INFO  n=200 nt=2  logdet=108.1486632 (no reference)
+  PASS  n=200  nt=4 vs nt=1  max|diff|=0.000e+00 (tol=1e-10)
+  PASS  n=200 nt=4  ||A-LL^T||_max=8.882e-15 (tol=1e-08)
+  PASS  n=200 nt=4  ||A-LL^T||_F/||A||_F=3.017e-16 (tol=1e-10)
+  PASS  n=200 nt=4  max_sym=0.000e+00 (tol=1e-12)
+  PASS  n=200 nt=4  all L[i,i]>0  (min=1.004e+00)
+  INFO  n=200 nt=4  logdet=108.1486632 (no reference)
+  PASS  n=200  nt=8 vs nt=1  max|diff|=0.000e+00 (tol=1e-10)
+  PASS  n=200 nt=8  ||A-LL^T||_max=8.882e-15 (tol=1e-08)
+  PASS  n=200 nt=8  ||A-LL^T||_F/||A||_F=3.017e-16 (tol=1e-10)
+  PASS  n=200 nt=8  max_sym=0.000e+00 (tol=1e-12)
+  PASS  n=200 nt=8  all L[i,i]>0  (min=1.004e+00)
+  INFO  n=200 nt=8  logdet=108.1486632 (no reference)
+  PASS  n=200  nt=76 vs nt=1  max|diff|=0.000e+00 (tol=1e-10)
+  PASS  n=200 nt=76  ||A-LL^T||_max=8.882e-15 (tol=1e-08)
+  PASS  n=200 nt=76  ||A-LL^T||_F/||A||_F=3.017e-16 (tol=1e-10)
+  PASS  n=200 nt=76  max_sym=0.000e+00 (tol=1e-12)
+  PASS  n=200 nt=76  all L[i,i]>0  (min=1.004e+00)
+  INFO  n=200 nt=76  logdet=108.1486632 (no reference)
+
+=== Test 8: multi-thread  n=500 ===
+  PASS  n=500  nt=2 vs nt=1  max|diff|=0.000e+00 (tol=1e-10)
+  PASS  n=500 nt=2  ||A-LL^T||_max=3.908e-14 (tol=1e-08)
+  PASS  n=500 nt=2  ||A-LL^T||_F/||A||_F=4.773e-16 (tol=1e-10)
+  PASS  n=500 nt=2  max_sym=0.000e+00 (tol=1e-12)
+  PASS  n=500 nt=2  all L[i,i]>0  (min=1.000e+00)
+  INFO  n=500 nt=2  logdet=269.319591 (no reference)
+  PASS  n=500  nt=4 vs nt=1  max|diff|=0.000e+00 (tol=1e-10)
+  PASS  n=500 nt=4  ||A-LL^T||_max=3.908e-14 (tol=1e-08)
+  PASS  n=500 nt=4  ||A-LL^T||_F/||A||_F=4.773e-16 (tol=1e-10)
+  PASS  n=500 nt=4  max_sym=0.000e+00 (tol=1e-12)
+  PASS  n=500 nt=4  all L[i,i]>0  (min=1.000e+00)
+  INFO  n=500 nt=4  logdet=269.319591 (no reference)
+  PASS  n=500  nt=8 vs nt=1  max|diff|=0.000e+00 (tol=1e-10)
+  PASS  n=500 nt=8  ||A-LL^T||_max=3.908e-14 (tol=1e-08)
+  PASS  n=500 nt=8  ||A-LL^T||_F/||A||_F=4.773e-16 (tol=1e-10)
+  PASS  n=500 nt=8  max_sym=0.000e+00 (tol=1e-12)
+  PASS  n=500 nt=8  all L[i,i]>0  (min=1.000e+00)
+  INFO  n=500 nt=8  logdet=269.319591 (no reference)
+  PASS  n=500  nt=76 vs nt=1  max|diff|=0.000e+00 (tol=1e-10)
+  PASS  n=500 nt=76  ||A-LL^T||_max=3.908e-14 (tol=1e-08)
+  PASS  n=500 nt=76  ||A-LL^T||_F/||A||_F=4.773e-16 (tol=1e-10)
+  PASS  n=500 nt=76  max_sym=0.000e+00 (tol=1e-12)
+  PASS  n=500 nt=76  all L[i,i]>0  (min=1.000e+00)
+  INFO  n=500 nt=76  logdet=269.319591 (no reference)
+
+--- 182 / 182 tests passed ---
+
+================================================================
+  build=strict  OMP_NUM_THREADS=8
+================================================================
+mphil_dis_cholesky: n=0 out of range [1, 100000]
+mphil_dis_cholesky: n=100001 out of range [1, 100000]
+=== mphil_dis_cholesky correctness tests ===
+    NB=96
+    TOL_EXACT=1e-10  TOL_KNOWN_L=1e-10  TOL_RECON=1e-08  TOL_REL_RECON=1e-10  TOL_SYM=1e-12  TOL_LOGDET=1e-06
+
+
+=== Test 1: 2x2 spec example ===
+  PASS  L[0,0]=2
+  PASS  L[1,0]=1
+  PASS  L[1,1]=5
+  PASS  L^T[0,1]=1
+  PASS  logdet=log(100)
+  PASS  elapsed>=0
+
+=== Test 2: 3x3 hand-computed ===
+  PASS  L[0,0]=2
+  PASS  L[1,0]=1
+  PASS  L[1,1]=sqrt2
+  PASS  L[2,0]=1
+  PASS  L[2,1]=0
+  PASS  L[2,2]=sqrt2
+  PASS  L^T[0,1]=1
+  PASS  L^T[0,2]=1
+  PASS  L^T[1,2]=0
+  PASS  logdet=log(16)
+  PASS  elapsed>=0
+
+=== Test 3: n=1 edge case ===
+  PASS  c[0]=3
+  PASS  elapsed>=0
+
+=== Test 4: bounds guard ===
+  PASS  n=0 → -1.0
+  PASS  n=100001 → -1.0
+  PASS  n=1 → >=0
+  PASS  n=1: c[0]=2
+
+=== Test 5: known-L  n=5 ===
+  PASS  elapsed>=0 n=5
+  PASS  n=5  max|L-L_ref|=2.220e-16 (tol=1e-10)
+  PASS  n=5  ||A-LL^T||_max=4.441e-16 (tol=1e-08)
+  PASS  n=5  ||A-LL^T||_F/||A||_F=9.592e-17 (tol=1e-10)
+  PASS  n=5  max_sym=0.000e+00 (tol=1e-12)
+  PASS  n=5  all L[i,i]>0  (min=1.071e+00)
+  PASS  n=5  |logdet_diff|=4.441e-16 (tol=1e-06)  got=3.01345 ref=3.01345
+
+=== Test 5: known-L  n=95 ===
+  PASS  elapsed>=0 n=95
+  PASS  n=95  max|L-L_ref|=5.912e-15 (tol=1e-10)
+  PASS  n=95  ||A-LL^T||_max=5.329e-15 (tol=1e-08)
+  PASS  n=95  ||A-LL^T||_F/||A||_F=2.822e-16 (tol=1e-10)
+  PASS  n=95  max_sym=0.000e+00 (tol=1e-12)
+  PASS  n=95  all L[i,i]>0  (min=1.004e+00)
+  PASS  n=95  |logdet_diff|=2.842e-14 (tol=1e-06)  got=51.1897 ref=51.1897
+
+=== Test 5: known-L  n=96 ===
+  PASS  elapsed>=0 n=96
+  PASS  n=96  max|L-L_ref|=5.912e-15 (tol=1e-10)
+  PASS  n=96  ||A-LL^T||_max=5.329e-15 (tol=1e-08)
+  PASS  n=96  ||A-LL^T||_F/||A||_F=2.837e-16 (tol=1e-10)
+  PASS  n=96  max_sym=0.000e+00 (tol=1e-12)
+  PASS  n=96  all L[i,i]>0  (min=1.004e+00)
+  PASS  n=96  |logdet_diff|=2.842e-14 (tol=1e-06)  got=51.9897 ref=51.9897
+
+=== Test 5: known-L  n=97 ===
+  PASS  elapsed>=0 n=97
+  PASS  n=97  max|L-L_ref|=5.912e-15 (tol=1e-10)
+  PASS  n=97  ||A-LL^T||_max=5.329e-15 (tol=1e-08)
+  PASS  n=97  ||A-LL^T||_F/||A||_F=2.791e-16 (tol=1e-10)
+  PASS  n=97  max_sym=0.000e+00 (tol=1e-12)
+  PASS  n=97  all L[i,i]>0  (min=1.004e+00)
+  PASS  n=97  |logdet_diff|=3.553e-14 (tol=1e-06)  got=52.3372 ref=52.3372
+
+=== Test 5: known-L  n=191 ===
+  PASS  elapsed>=0 n=191
+  PASS  n=191  max|L-L_ref|=2.084e-14 (tol=1e-10)
+  PASS  n=191  ||A-LL^T||_max=7.105e-15 (tol=1e-08)
+  PASS  n=191  ||A-LL^T||_F/||A||_F=2.950e-16 (tol=1e-10)
+  PASS  n=191  max_sym=0.000e+00 (tol=1e-12)
+  PASS  n=191  all L[i,i]>0  (min=1.004e+00)
+  PASS  n=191  |logdet_diff|=2.416e-13 (tol=1e-06)  got=103.242 ref=103.242
+
+=== Test 5: known-L  n=192 ===
+  PASS  elapsed>=0 n=192
+  PASS  n=192  max|L-L_ref|=2.084e-14 (tol=1e-10)
+  PASS  n=192  ||A-LL^T||_max=7.105e-15 (tol=1e-08)
+  PASS  n=192  ||A-LL^T||_F/||A||_F=2.954e-16 (tol=1e-10)
+  PASS  n=192  max_sym=0.000e+00 (tol=1e-12)
+  PASS  n=192  all L[i,i]>0  (min=1.004e+00)
+  PASS  n=192  |logdet_diff|=2.416e-13 (tol=1e-06)  got=103.569 ref=103.569
+
+=== Test 5: known-L  n=193 ===
+  PASS  elapsed>=0 n=193
+  PASS  n=193  max|L-L_ref|=2.164e-14 (tol=1e-10)
+  PASS  n=193  ||A-LL^T||_max=7.105e-15 (tol=1e-08)
+  PASS  n=193  ||A-LL^T||_F/||A||_F=2.963e-16 (tol=1e-10)
+  PASS  n=193  max_sym=0.000e+00 (tol=1e-12)
+  PASS  n=193  all L[i,i]>0  (min=1.004e+00)
+  PASS  n=193  |logdet_diff|=2.558e-13 (tol=1e-06)  got=104.365 ref=104.365
+
+=== Test 5: known-L  n=255 ===
+  PASS  elapsed>=0 n=255
+  PASS  n=255  max|L-L_ref|=3.847e-14 (tol=1e-10)
+  PASS  n=255  ||A-LL^T||_max=1.243e-14 (tol=1e-08)
+  PASS  n=255  ||A-LL^T||_F/||A||_F=3.473e-16 (tol=1e-10)
+  PASS  n=255  max_sym=0.000e+00 (tol=1e-12)
+  PASS  n=255  all L[i,i]>0  (min=1.004e+00)
+  PASS  n=255  |logdet_diff|=5.116e-13 (tol=1e-06)  got=137.46 ref=137.46
+
+=== Test 5: known-L  n=256 ===
+  PASS  elapsed>=0 n=256
+  PASS  n=256  max|L-L_ref|=3.847e-14 (tol=1e-10)
+  PASS  n=256  ||A-LL^T||_max=1.243e-14 (tol=1e-08)
+  PASS  n=256  ||A-LL^T||_F/||A||_F=3.480e-16 (tol=1e-10)
+  PASS  n=256  max_sym=0.000e+00 (tol=1e-12)
+  PASS  n=256  all L[i,i]>0  (min=1.004e+00)
+  PASS  n=256  |logdet_diff|=5.400e-13 (tol=1e-06)  got=138.27 ref=138.27
+
+=== Test 5: known-L  n=257 ===
+  PASS  elapsed>=0 n=257
+  PASS  n=257  max|L-L_ref|=3.847e-14 (tol=1e-10)
+  PASS  n=257  ||A-LL^T||_max=1.243e-14 (tol=1e-08)
+  PASS  n=257  ||A-LL^T||_F/||A||_F=3.476e-16 (tol=1e-10)
+  PASS  n=257  max_sym=0.000e+00 (tol=1e-12)
+  PASS  n=257  all L[i,i]>0  (min=1.004e+00)
+  PASS  n=257  |logdet_diff|=5.116e-13 (tol=1e-06)  got=138.774 ref=138.774
+
+=== Test 6: stressed diagonal  n=32  diag 1..1e-12 ===
+  PASS  stressed n=32  max|L-L_ref|=0.000e+00 (tol=1e-10)
+  PASS  stressed n=32  ||A-LL^T||_max=0.000e+00 (tol=1e-08)
+  PASS  stressed n=32  ||A-LL^T||_F/||A||_F=0.000e+00 (tol=1e-10)
+  PASS  stressed n=32  max_sym=0.000e+00 (tol=1e-12)
+  PASS  stressed n=32  all L[i,i]>0  (min=1.000e-12)
+  PASS  stressed n=32  |logdet_diff|=0.000e+00 (tol=1e-06)  got=-884.193 ref=-884.193
+
+=== Test 6: stressed diagonal  n=96  diag 1..1e-12 ===
+  PASS  stressed n=96  max|L-L_ref|=0.000e+00 (tol=1e-10)
+  PASS  stressed n=96  ||A-LL^T||_max=0.000e+00 (tol=1e-08)
+  PASS  stressed n=96  ||A-LL^T||_F/||A||_F=0.000e+00 (tol=1e-10)
+  PASS  stressed n=96  max_sym=0.000e+00 (tol=1e-12)
+  PASS  stressed n=96  all L[i,i]>0  (min=1.000e-12)
+  PASS  stressed n=96  |logdet_diff|=0.000e+00 (tol=1e-06)  got=-2652.58 ref=-2652.58
+
+=== Test 7: corr()  n=50 ===
+  PASS  elapsed>=0 n=50
+  PASS  corr n=50  ||A-LL^T||_max=6.661e-16 (tol=1e-08)
+  PASS  corr n=50  ||A-LL^T||_F/||A||_F=1.728e-16 (tol=1e-10)
+  PASS  corr n=50  max_sym=0.000e+00 (tol=1e-12)
+  PASS  corr n=50  all L[i,i]>0  (min=1.322e-01)
+  PASS  corr n=50  |logdet_diff|=1.646e-11 (tol=1e-06)  got=-196.105 ref=-196.105
+
+=== Test 7: corr()  n=200 ===
+  PASS  elapsed>=0 n=200
+  PASS  corr n=200  ||A-LL^T||_max=1.110e-15 (tol=1e-08)
+  PASS  corr n=200  ||A-LL^T||_F/||A||_F=2.435e-16 (tol=1e-10)
+  PASS  corr n=200  max_sym=0.000e+00 (tol=1e-12)
+  PASS  corr n=200  all L[i,i]>0  (min=1.092e-01)
+  PASS  corr n=200  |logdet_diff|=4.502e-11 (tol=1e-06)  got=-877.103 ref=-877.103
+
+=== Test 7: corr()  n=500 ===
+  PASS  elapsed>=0 n=500
+  PASS  corr n=500  ||A-LL^T||_max=1.887e-15 (tol=1e-08)
+  PASS  corr n=500  ||A-LL^T||_F/||A||_F=3.855e-16 (tol=1e-10)
+  PASS  corr n=500  max_sym=0.000e+00 (tol=1e-12)
+  PASS  corr n=500  all L[i,i]>0  (min=1.041e-01)
+  INFO  corr n=500  logdet=-2251.671388 (no reference)
+
+=== Test 8: multi-thread  n=96 ===
+  PASS  n=96  nt=2 vs nt=1  max|diff|=0.000e+00 (tol=1e-10)
+  PASS  n=96 nt=2  ||A-LL^T||_max=5.329e-15 (tol=1e-08)
+  PASS  n=96 nt=2  ||A-LL^T||_F/||A||_F=2.837e-16 (tol=1e-10)
+  PASS  n=96 nt=2  max_sym=0.000e+00 (tol=1e-12)
+  PASS  n=96 nt=2  all L[i,i]>0  (min=1.004e+00)
+  INFO  n=96 nt=2  logdet=51.98967287 (no reference)
+  PASS  n=96  nt=4 vs nt=1  max|diff|=0.000e+00 (tol=1e-10)
+  PASS  n=96 nt=4  ||A-LL^T||_max=5.329e-15 (tol=1e-08)
+  PASS  n=96 nt=4  ||A-LL^T||_F/||A||_F=2.837e-16 (tol=1e-10)
+  PASS  n=96 nt=4  max_sym=0.000e+00 (tol=1e-12)
+  PASS  n=96 nt=4  all L[i,i]>0  (min=1.004e+00)
+  INFO  n=96 nt=4  logdet=51.98967287 (no reference)
+  PASS  n=96  nt=8 vs nt=1  max|diff|=0.000e+00 (tol=1e-10)
+  PASS  n=96 nt=8  ||A-LL^T||_max=5.329e-15 (tol=1e-08)
+  PASS  n=96 nt=8  ||A-LL^T||_F/||A||_F=2.837e-16 (tol=1e-10)
+  PASS  n=96 nt=8  max_sym=0.000e+00 (tol=1e-12)
+  PASS  n=96 nt=8  all L[i,i]>0  (min=1.004e+00)
+  INFO  n=96 nt=8  logdet=51.98967287 (no reference)
+  PASS  n=96  nt=76 vs nt=1  max|diff|=0.000e+00 (tol=1e-10)
+  PASS  n=96 nt=76  ||A-LL^T||_max=5.329e-15 (tol=1e-08)
+  PASS  n=96 nt=76  ||A-LL^T||_F/||A||_F=2.837e-16 (tol=1e-10)
+  PASS  n=96 nt=76  max_sym=0.000e+00 (tol=1e-12)
+  PASS  n=96 nt=76  all L[i,i]>0  (min=1.004e+00)
+  INFO  n=96 nt=76  logdet=51.98967287 (no reference)
+
+=== Test 8: multi-thread  n=200 ===
+  PASS  n=200  nt=2 vs nt=1  max|diff|=0.000e+00 (tol=1e-10)
+  PASS  n=200 nt=2  ||A-LL^T||_max=8.882e-15 (tol=1e-08)
+  PASS  n=200 nt=2  ||A-LL^T||_F/||A||_F=3.017e-16 (tol=1e-10)
+  PASS  n=200 nt=2  max_sym=0.000e+00 (tol=1e-12)
+  PASS  n=200 nt=2  all L[i,i]>0  (min=1.004e+00)
+  INFO  n=200 nt=2  logdet=108.1486632 (no reference)
+  PASS  n=200  nt=4 vs nt=1  max|diff|=0.000e+00 (tol=1e-10)
+  PASS  n=200 nt=4  ||A-LL^T||_max=8.882e-15 (tol=1e-08)
+  PASS  n=200 nt=4  ||A-LL^T||_F/||A||_F=3.017e-16 (tol=1e-10)
+  PASS  n=200 nt=4  max_sym=0.000e+00 (tol=1e-12)
+  PASS  n=200 nt=4  all L[i,i]>0  (min=1.004e+00)
+  INFO  n=200 nt=4  logdet=108.1486632 (no reference)
+  PASS  n=200  nt=8 vs nt=1  max|diff|=0.000e+00 (tol=1e-10)
+  PASS  n=200 nt=8  ||A-LL^T||_max=8.882e-15 (tol=1e-08)
+  PASS  n=200 nt=8  ||A-LL^T||_F/||A||_F=3.017e-16 (tol=1e-10)
+  PASS  n=200 nt=8  max_sym=0.000e+00 (tol=1e-12)
+  PASS  n=200 nt=8  all L[i,i]>0  (min=1.004e+00)
+  INFO  n=200 nt=8  logdet=108.1486632 (no reference)
+  PASS  n=200  nt=76 vs nt=1  max|diff|=0.000e+00 (tol=1e-10)
+  PASS  n=200 nt=76  ||A-LL^T||_max=8.882e-15 (tol=1e-08)
+  PASS  n=200 nt=76  ||A-LL^T||_F/||A||_F=3.017e-16 (tol=1e-10)
+  PASS  n=200 nt=76  max_sym=0.000e+00 (tol=1e-12)
+  PASS  n=200 nt=76  all L[i,i]>0  (min=1.004e+00)
+  INFO  n=200 nt=76  logdet=108.1486632 (no reference)
+
+=== Test 8: multi-thread  n=500 ===
+  PASS  n=500  nt=2 vs nt=1  max|diff|=0.000e+00 (tol=1e-10)
+  PASS  n=500 nt=2  ||A-LL^T||_max=3.908e-14 (tol=1e-08)
+  PASS  n=500 nt=2  ||A-LL^T||_F/||A||_F=4.773e-16 (tol=1e-10)
+  PASS  n=500 nt=2  max_sym=0.000e+00 (tol=1e-12)
+  PASS  n=500 nt=2  all L[i,i]>0  (min=1.000e+00)
+  INFO  n=500 nt=2  logdet=269.319591 (no reference)
+  PASS  n=500  nt=4 vs nt=1  max|diff|=0.000e+00 (tol=1e-10)
+  PASS  n=500 nt=4  ||A-LL^T||_max=3.908e-14 (tol=1e-08)
+  PASS  n=500 nt=4  ||A-LL^T||_F/||A||_F=4.773e-16 (tol=1e-10)
+  PASS  n=500 nt=4  max_sym=0.000e+00 (tol=1e-12)
+  PASS  n=500 nt=4  all L[i,i]>0  (min=1.000e+00)
+  INFO  n=500 nt=4  logdet=269.319591 (no reference)
+  PASS  n=500  nt=8 vs nt=1  max|diff|=0.000e+00 (tol=1e-10)
+  PASS  n=500 nt=8  ||A-LL^T||_max=3.908e-14 (tol=1e-08)
+  PASS  n=500 nt=8  ||A-LL^T||_F/||A||_F=4.773e-16 (tol=1e-10)
+  PASS  n=500 nt=8  max_sym=0.000e+00 (tol=1e-12)
+  PASS  n=500 nt=8  all L[i,i]>0  (min=1.000e+00)
+  INFO  n=500 nt=8  logdet=269.319591 (no reference)
+  PASS  n=500  nt=76 vs nt=1  max|diff|=0.000e+00 (tol=1e-10)
+  PASS  n=500 nt=76  ||A-LL^T||_max=3.908e-14 (tol=1e-08)
+  PASS  n=500 nt=76  ||A-LL^T||_F/||A||_F=4.773e-16 (tol=1e-10)
+  PASS  n=500 nt=76  max_sym=0.000e+00 (tol=1e-12)
+  PASS  n=500 nt=76  all L[i,i]>0  (min=1.000e+00)
+  INFO  n=500 nt=76  logdet=269.319591 (no reference)
+
+--- 182 / 182 tests passed ---
+
+================================================================
+  build=strict  OMP_NUM_THREADS=76
+================================================================
+mphil_dis_cholesky: n=0 out of range [1, 100000]
+mphil_dis_cholesky: n=100001 out of range [1, 100000]
+=== mphil_dis_cholesky correctness tests ===
+    NB=96
+    TOL_EXACT=1e-10  TOL_KNOWN_L=1e-10  TOL_RECON=1e-08  TOL_REL_RECON=1e-10  TOL_SYM=1e-12  TOL_LOGDET=1e-06
+
+
+=== Test 1: 2x2 spec example ===
+  PASS  L[0,0]=2
+  PASS  L[1,0]=1
+  PASS  L[1,1]=5
+  PASS  L^T[0,1]=1
+  PASS  logdet=log(100)
+  PASS  elapsed>=0
+
+=== Test 2: 3x3 hand-computed ===
+  PASS  L[0,0]=2
+  PASS  L[1,0]=1
+  PASS  L[1,1]=sqrt2
+  PASS  L[2,0]=1
+  PASS  L[2,1]=0
+  PASS  L[2,2]=sqrt2
+  PASS  L^T[0,1]=1
+  PASS  L^T[0,2]=1
+  PASS  L^T[1,2]=0
+  PASS  logdet=log(16)
+  PASS  elapsed>=0
+
+=== Test 3: n=1 edge case ===
+  PASS  c[0]=3
+  PASS  elapsed>=0
+
+=== Test 4: bounds guard ===
+  PASS  n=0 → -1.0
+  PASS  n=100001 → -1.0
+  PASS  n=1 → >=0
+  PASS  n=1: c[0]=2
+
+=== Test 5: known-L  n=5 ===
+  PASS  elapsed>=0 n=5
+  PASS  n=5  max|L-L_ref|=2.220e-16 (tol=1e-10)
+  PASS  n=5  ||A-LL^T||_max=4.441e-16 (tol=1e-08)
+  PASS  n=5  ||A-LL^T||_F/||A||_F=9.592e-17 (tol=1e-10)
+  PASS  n=5  max_sym=0.000e+00 (tol=1e-12)
+  PASS  n=5  all L[i,i]>0  (min=1.071e+00)
+  PASS  n=5  |logdet_diff|=4.441e-16 (tol=1e-06)  got=3.01345 ref=3.01345
+
+=== Test 5: known-L  n=95 ===
+  PASS  elapsed>=0 n=95
+  PASS  n=95  max|L-L_ref|=5.912e-15 (tol=1e-10)
+  PASS  n=95  ||A-LL^T||_max=5.329e-15 (tol=1e-08)
+  PASS  n=95  ||A-LL^T||_F/||A||_F=2.822e-16 (tol=1e-10)
+  PASS  n=95  max_sym=0.000e+00 (tol=1e-12)
+  PASS  n=95  all L[i,i]>0  (min=1.004e+00)
+  PASS  n=95  |logdet_diff|=2.842e-14 (tol=1e-06)  got=51.1897 ref=51.1897
+
+=== Test 5: known-L  n=96 ===
+  PASS  elapsed>=0 n=96
+  PASS  n=96  max|L-L_ref|=5.912e-15 (tol=1e-10)
+  PASS  n=96  ||A-LL^T||_max=5.329e-15 (tol=1e-08)
+  PASS  n=96  ||A-LL^T||_F/||A||_F=2.837e-16 (tol=1e-10)
+  PASS  n=96  max_sym=0.000e+00 (tol=1e-12)
+  PASS  n=96  all L[i,i]>0  (min=1.004e+00)
+  PASS  n=96  |logdet_diff|=2.842e-14 (tol=1e-06)  got=51.9897 ref=51.9897
+
+=== Test 5: known-L  n=97 ===
+  PASS  elapsed>=0 n=97
+  PASS  n=97  max|L-L_ref|=5.912e-15 (tol=1e-10)
+  PASS  n=97  ||A-LL^T||_max=5.329e-15 (tol=1e-08)
+  PASS  n=97  ||A-LL^T||_F/||A||_F=2.791e-16 (tol=1e-10)
+  PASS  n=97  max_sym=0.000e+00 (tol=1e-12)
+  PASS  n=97  all L[i,i]>0  (min=1.004e+00)
+  PASS  n=97  |logdet_diff|=3.553e-14 (tol=1e-06)  got=52.3372 ref=52.3372
+
+=== Test 5: known-L  n=191 ===
+  PASS  elapsed>=0 n=191
+  PASS  n=191  max|L-L_ref|=2.084e-14 (tol=1e-10)
+  PASS  n=191  ||A-LL^T||_max=7.105e-15 (tol=1e-08)
+  PASS  n=191  ||A-LL^T||_F/||A||_F=2.950e-16 (tol=1e-10)
+  PASS  n=191  max_sym=0.000e+00 (tol=1e-12)
+  PASS  n=191  all L[i,i]>0  (min=1.004e+00)
+  PASS  n=191  |logdet_diff|=2.416e-13 (tol=1e-06)  got=103.242 ref=103.242
+
+=== Test 5: known-L  n=192 ===
+  PASS  elapsed>=0 n=192
+  PASS  n=192  max|L-L_ref|=2.084e-14 (tol=1e-10)
+  PASS  n=192  ||A-LL^T||_max=7.105e-15 (tol=1e-08)
+  PASS  n=192  ||A-LL^T||_F/||A||_F=2.954e-16 (tol=1e-10)
+  PASS  n=192  max_sym=0.000e+00 (tol=1e-12)
+  PASS  n=192  all L[i,i]>0  (min=1.004e+00)
+  PASS  n=192  |logdet_diff|=2.416e-13 (tol=1e-06)  got=103.569 ref=103.569
+
+=== Test 5: known-L  n=193 ===
+  PASS  elapsed>=0 n=193
+  PASS  n=193  max|L-L_ref|=2.164e-14 (tol=1e-10)
+  PASS  n=193  ||A-LL^T||_max=7.105e-15 (tol=1e-08)
+  PASS  n=193  ||A-LL^T||_F/||A||_F=2.963e-16 (tol=1e-10)
+  PASS  n=193  max_sym=0.000e+00 (tol=1e-12)
+  PASS  n=193  all L[i,i]>0  (min=1.004e+00)
+  PASS  n=193  |logdet_diff|=2.558e-13 (tol=1e-06)  got=104.365 ref=104.365
+
+=== Test 5: known-L  n=255 ===
+  PASS  elapsed>=0 n=255
+  PASS  n=255  max|L-L_ref|=3.847e-14 (tol=1e-10)
+  PASS  n=255  ||A-LL^T||_max=1.243e-14 (tol=1e-08)
+  PASS  n=255  ||A-LL^T||_F/||A||_F=3.473e-16 (tol=1e-10)
+  PASS  n=255  max_sym=0.000e+00 (tol=1e-12)
+  PASS  n=255  all L[i,i]>0  (min=1.004e+00)
+  PASS  n=255  |logdet_diff|=5.116e-13 (tol=1e-06)  got=137.46 ref=137.46
+
+=== Test 5: known-L  n=256 ===
+  PASS  elapsed>=0 n=256
+  PASS  n=256  max|L-L_ref|=3.847e-14 (tol=1e-10)
+  PASS  n=256  ||A-LL^T||_max=1.243e-14 (tol=1e-08)
+  PASS  n=256  ||A-LL^T||_F/||A||_F=3.480e-16 (tol=1e-10)
+  PASS  n=256  max_sym=0.000e+00 (tol=1e-12)
+  PASS  n=256  all L[i,i]>0  (min=1.004e+00)
+  PASS  n=256  |logdet_diff|=5.400e-13 (tol=1e-06)  got=138.27 ref=138.27
+
+=== Test 5: known-L  n=257 ===
+  PASS  elapsed>=0 n=257
+  PASS  n=257  max|L-L_ref|=3.847e-14 (tol=1e-10)
+  PASS  n=257  ||A-LL^T||_max=1.243e-14 (tol=1e-08)
+  PASS  n=257  ||A-LL^T||_F/||A||_F=3.476e-16 (tol=1e-10)
+  PASS  n=257  max_sym=0.000e+00 (tol=1e-12)
+  PASS  n=257  all L[i,i]>0  (min=1.004e+00)
+  PASS  n=257  |logdet_diff|=5.116e-13 (tol=1e-06)  got=138.774 ref=138.774
+
+=== Test 6: stressed diagonal  n=32  diag 1..1e-12 ===
+  PASS  stressed n=32  max|L-L_ref|=0.000e+00 (tol=1e-10)
+  PASS  stressed n=32  ||A-LL^T||_max=0.000e+00 (tol=1e-08)
+  PASS  stressed n=32  ||A-LL^T||_F/||A||_F=0.000e+00 (tol=1e-10)
+  PASS  stressed n=32  max_sym=0.000e+00 (tol=1e-12)
+  PASS  stressed n=32  all L[i,i]>0  (min=1.000e-12)
+  PASS  stressed n=32  |logdet_diff|=0.000e+00 (tol=1e-06)  got=-884.193 ref=-884.193
+
+=== Test 6: stressed diagonal  n=96  diag 1..1e-12 ===
+  PASS  stressed n=96  max|L-L_ref|=0.000e+00 (tol=1e-10)
+  PASS  stressed n=96  ||A-LL^T||_max=0.000e+00 (tol=1e-08)
+  PASS  stressed n=96  ||A-LL^T||_F/||A||_F=0.000e+00 (tol=1e-10)
+  PASS  stressed n=96  max_sym=0.000e+00 (tol=1e-12)
+  PASS  stressed n=96  all L[i,i]>0  (min=1.000e-12)
+  PASS  stressed n=96  |logdet_diff|=0.000e+00 (tol=1e-06)  got=-2652.58 ref=-2652.58
+
+=== Test 7: corr()  n=50 ===
+  PASS  elapsed>=0 n=50
+  PASS  corr n=50  ||A-LL^T||_max=6.661e-16 (tol=1e-08)
+  PASS  corr n=50  ||A-LL^T||_F/||A||_F=1.728e-16 (tol=1e-10)
+  PASS  corr n=50  max_sym=0.000e+00 (tol=1e-12)
+  PASS  corr n=50  all L[i,i]>0  (min=1.322e-01)
+  PASS  corr n=50  |logdet_diff|=1.646e-11 (tol=1e-06)  got=-196.105 ref=-196.105
+
+=== Test 7: corr()  n=200 ===
+  PASS  elapsed>=0 n=200
+  PASS  corr n=200  ||A-LL^T||_max=1.110e-15 (tol=1e-08)
+  PASS  corr n=200  ||A-LL^T||_F/||A||_F=2.435e-16 (tol=1e-10)
+  PASS  corr n=200  max_sym=0.000e+00 (tol=1e-12)
+  PASS  corr n=200  all L[i,i]>0  (min=1.092e-01)
+  PASS  corr n=200  |logdet_diff|=4.502e-11 (tol=1e-06)  got=-877.103 ref=-877.103
+
+=== Test 7: corr()  n=500 ===
+  PASS  elapsed>=0 n=500
+  PASS  corr n=500  ||A-LL^T||_max=1.887e-15 (tol=1e-08)
+  PASS  corr n=500  ||A-LL^T||_F/||A||_F=3.855e-16 (tol=1e-10)
+  PASS  corr n=500  max_sym=0.000e+00 (tol=1e-12)
+  PASS  corr n=500  all L[i,i]>0  (min=1.041e-01)
+  INFO  corr n=500  logdet=-2251.671388 (no reference)
+
+=== Test 8: multi-thread  n=96 ===
+  PASS  n=96  nt=2 vs nt=1  max|diff|=0.000e+00 (tol=1e-10)
+  PASS  n=96 nt=2  ||A-LL^T||_max=5.329e-15 (tol=1e-08)
+  PASS  n=96 nt=2  ||A-LL^T||_F/||A||_F=2.837e-16 (tol=1e-10)
+  PASS  n=96 nt=2  max_sym=0.000e+00 (tol=1e-12)
+  PASS  n=96 nt=2  all L[i,i]>0  (min=1.004e+00)
+  INFO  n=96 nt=2  logdet=51.98967287 (no reference)
+  PASS  n=96  nt=4 vs nt=1  max|diff|=0.000e+00 (tol=1e-10)
+  PASS  n=96 nt=4  ||A-LL^T||_max=5.329e-15 (tol=1e-08)
+  PASS  n=96 nt=4  ||A-LL^T||_F/||A||_F=2.837e-16 (tol=1e-10)
+  PASS  n=96 nt=4  max_sym=0.000e+00 (tol=1e-12)
+  PASS  n=96 nt=4  all L[i,i]>0  (min=1.004e+00)
+  INFO  n=96 nt=4  logdet=51.98967287 (no reference)
+  PASS  n=96  nt=8 vs nt=1  max|diff|=0.000e+00 (tol=1e-10)
+  PASS  n=96 nt=8  ||A-LL^T||_max=5.329e-15 (tol=1e-08)
+  PASS  n=96 nt=8  ||A-LL^T||_F/||A||_F=2.837e-16 (tol=1e-10)
+  PASS  n=96 nt=8  max_sym=0.000e+00 (tol=1e-12)
+  PASS  n=96 nt=8  all L[i,i]>0  (min=1.004e+00)
+  INFO  n=96 nt=8  logdet=51.98967287 (no reference)
+  PASS  n=96  nt=76 vs nt=1  max|diff|=0.000e+00 (tol=1e-10)
+  PASS  n=96 nt=76  ||A-LL^T||_max=5.329e-15 (tol=1e-08)
+  PASS  n=96 nt=76  ||A-LL^T||_F/||A||_F=2.837e-16 (tol=1e-10)
+  PASS  n=96 nt=76  max_sym=0.000e+00 (tol=1e-12)
+  PASS  n=96 nt=76  all L[i,i]>0  (min=1.004e+00)
+  INFO  n=96 nt=76  logdet=51.98967287 (no reference)
+
+=== Test 8: multi-thread  n=200 ===
+  PASS  n=200  nt=2 vs nt=1  max|diff|=0.000e+00 (tol=1e-10)
+  PASS  n=200 nt=2  ||A-LL^T||_max=8.882e-15 (tol=1e-08)
+  PASS  n=200 nt=2  ||A-LL^T||_F/||A||_F=3.017e-16 (tol=1e-10)
+  PASS  n=200 nt=2  max_sym=0.000e+00 (tol=1e-12)
+  PASS  n=200 nt=2  all L[i,i]>0  (min=1.004e+00)
+  INFO  n=200 nt=2  logdet=108.1486632 (no reference)
+  PASS  n=200  nt=4 vs nt=1  max|diff|=0.000e+00 (tol=1e-10)
+  PASS  n=200 nt=4  ||A-LL^T||_max=8.882e-15 (tol=1e-08)
+  PASS  n=200 nt=4  ||A-LL^T||_F/||A||_F=3.017e-16 (tol=1e-10)
+  PASS  n=200 nt=4  max_sym=0.000e+00 (tol=1e-12)
+  PASS  n=200 nt=4  all L[i,i]>0  (min=1.004e+00)
+  INFO  n=200 nt=4  logdet=108.1486632 (no reference)
+  PASS  n=200  nt=8 vs nt=1  max|diff|=0.000e+00 (tol=1e-10)
+  PASS  n=200 nt=8  ||A-LL^T||_max=8.882e-15 (tol=1e-08)
+  PASS  n=200 nt=8  ||A-LL^T||_F/||A||_F=3.017e-16 (tol=1e-10)
+  PASS  n=200 nt=8  max_sym=0.000e+00 (tol=1e-12)
+  PASS  n=200 nt=8  all L[i,i]>0  (min=1.004e+00)
+  INFO  n=200 nt=8  logdet=108.1486632 (no reference)
+  PASS  n=200  nt=76 vs nt=1  max|diff|=0.000e+00 (tol=1e-10)
+  PASS  n=200 nt=76  ||A-LL^T||_max=8.882e-15 (tol=1e-08)
+  PASS  n=200 nt=76  ||A-LL^T||_F/||A||_F=3.017e-16 (tol=1e-10)
+  PASS  n=200 nt=76  max_sym=0.000e+00 (tol=1e-12)
+  PASS  n=200 nt=76  all L[i,i]>0  (min=1.004e+00)
+  INFO  n=200 nt=76  logdet=108.1486632 (no reference)
+
+=== Test 8: multi-thread  n=500 ===
+  PASS  n=500  nt=2 vs nt=1  max|diff|=0.000e+00 (tol=1e-10)
+  PASS  n=500 nt=2  ||A-LL^T||_max=3.908e-14 (tol=1e-08)
+  PASS  n=500 nt=2  ||A-LL^T||_F/||A||_F=4.773e-16 (tol=1e-10)
+  PASS  n=500 nt=2  max_sym=0.000e+00 (tol=1e-12)
+  PASS  n=500 nt=2  all L[i,i]>0  (min=1.000e+00)
+  INFO  n=500 nt=2  logdet=269.319591 (no reference)
+  PASS  n=500  nt=4 vs nt=1  max|diff|=0.000e+00 (tol=1e-10)
+  PASS  n=500 nt=4  ||A-LL^T||_max=3.908e-14 (tol=1e-08)
+  PASS  n=500 nt=4  ||A-LL^T||_F/||A||_F=4.773e-16 (tol=1e-10)
+  PASS  n=500 nt=4  max_sym=0.000e+00 (tol=1e-12)
+  PASS  n=500 nt=4  all L[i,i]>0  (min=1.000e+00)
+  INFO  n=500 nt=4  logdet=269.319591 (no reference)
+  PASS  n=500  nt=8 vs nt=1  max|diff|=0.000e+00 (tol=1e-10)
+  PASS  n=500 nt=8  ||A-LL^T||_max=3.908e-14 (tol=1e-08)
+  PASS  n=500 nt=8  ||A-LL^T||_F/||A||_F=4.773e-16 (tol=1e-10)
+  PASS  n=500 nt=8  max_sym=0.000e+00 (tol=1e-12)
+  PASS  n=500 nt=8  all L[i,i]>0  (min=1.000e+00)
+  INFO  n=500 nt=8  logdet=269.319591 (no reference)
+  PASS  n=500  nt=76 vs nt=1  max|diff|=0.000e+00 (tol=1e-10)
+  PASS  n=500 nt=76  ||A-LL^T||_max=3.908e-14 (tol=1e-08)
+  PASS  n=500 nt=76  ||A-LL^T||_F/||A||_F=4.773e-16 (tol=1e-10)
+  PASS  n=500 nt=76  max_sym=0.000e+00 (tol=1e-12)
+  PASS  n=500 nt=76  all L[i,i]>0  (min=1.000e+00)
+  INFO  n=500 nt=76  logdet=269.319591 (no reference)
+
+--- 182 / 182 tests passed ---
+
+================================================================
+  build=perf  OMP_NUM_THREADS=1
+================================================================
+mphil_dis_cholesky: n=0 out of range [1, 100000]
+mphil_dis_cholesky: n=100001 out of range [1, 100000]
+=== mphil_dis_cholesky correctness tests ===
+    NB=96
+    TOL_EXACT=1e-10  TOL_KNOWN_L=1e-10  TOL_RECON=1e-08  TOL_REL_RECON=1e-10  TOL_SYM=1e-12  TOL_LOGDET=1e-06
+
+
+=== Test 1: 2x2 spec example ===
+  PASS  L[0,0]=2
+  PASS  L[1,0]=1
+  PASS  L[1,1]=5
+  PASS  L^T[0,1]=1
+  PASS  logdet=log(100)
+  PASS  elapsed>=0
+
+=== Test 2: 3x3 hand-computed ===
+  PASS  L[0,0]=2
+  PASS  L[1,0]=1
+  PASS  L[1,1]=sqrt2
+  PASS  L[2,0]=1
+  PASS  L[2,1]=0
+  PASS  L[2,2]=sqrt2
+  PASS  L^T[0,1]=1
+  PASS  L^T[0,2]=1
+  PASS  L^T[1,2]=0
+  PASS  logdet=log(16)
+  PASS  elapsed>=0
+
+=== Test 3: n=1 edge case ===
+  PASS  c[0]=3
+  PASS  elapsed>=0
+
+=== Test 4: bounds guard ===
+  PASS  n=0 → -1.0
+  PASS  n=100001 → -1.0
+  PASS  n=1 → >=0
+  PASS  n=1: c[0]=2
+
+=== Test 5: known-L  n=5 ===
+  PASS  elapsed>=0 n=5
+  PASS  n=5  max|L-L_ref|=2.220e-16 (tol=1e-10)
+  PASS  n=5  ||A-LL^T||_max=4.441e-16 (tol=1e-08)
+  PASS  n=5  ||A-LL^T||_F/||A||_F=9.446e-17 (tol=1e-10)
+  PASS  n=5  max_sym=0.000e+00 (tol=1e-12)
+  PASS  n=5  all L[i,i]>0  (min=1.071e+00)
+  PASS  n=5  |logdet_diff|=4.441e-16 (tol=1e-06)  got=3.01345 ref=3.01345
+
+=== Test 5: known-L  n=95 ===
+  PASS  elapsed>=0 n=95
+  PASS  n=95  max|L-L_ref|=5.412e-15 (tol=1e-10)
+  PASS  n=95  ||A-LL^T||_max=3.553e-15 (tol=1e-08)
+  PASS  n=95  ||A-LL^T||_F/||A||_F=2.213e-16 (tol=1e-10)
+  PASS  n=95  max_sym=0.000e+00 (tol=1e-12)
+  PASS  n=95  all L[i,i]>0  (min=1.004e+00)
+  PASS  n=95  |logdet_diff|=2.842e-14 (tol=1e-06)  got=51.1897 ref=51.1897
+
+=== Test 5: known-L  n=96 ===
+  PASS  elapsed>=0 n=96
+  PASS  n=96  max|L-L_ref|=5.412e-15 (tol=1e-10)
+  PASS  n=96  ||A-LL^T||_max=3.553e-15 (tol=1e-08)
+  PASS  n=96  ||A-LL^T||_F/||A||_F=2.251e-16 (tol=1e-10)
+  PASS  n=96  max_sym=0.000e+00 (tol=1e-12)
+  PASS  n=96  all L[i,i]>0  (min=1.004e+00)
+  PASS  n=96  |logdet_diff|=2.842e-14 (tol=1e-06)  got=51.9897 ref=51.9897
+
+=== Test 5: known-L  n=97 ===
+  PASS  elapsed>=0 n=97
+  PASS  n=97  max|L-L_ref|=5.412e-15 (tol=1e-10)
+  PASS  n=97  ||A-LL^T||_max=3.553e-15 (tol=1e-08)
+  PASS  n=97  ||A-LL^T||_F/||A||_F=2.245e-16 (tol=1e-10)
+  PASS  n=97  max_sym=0.000e+00 (tol=1e-12)
+  PASS  n=97  all L[i,i]>0  (min=1.004e+00)
+  PASS  n=97  |logdet_diff|=2.842e-14 (tol=1e-06)  got=52.3372 ref=52.3372
+
+=== Test 5: known-L  n=191 ===
+  PASS  elapsed>=0 n=191
+  PASS  n=191  max|L-L_ref|=1.432e-14 (tol=1e-10)
+  PASS  n=191  ||A-LL^T||_max=3.553e-15 (tol=1e-08)
+  PASS  n=191  ||A-LL^T||_F/||A||_F=1.705e-16 (tol=1e-10)
+  PASS  n=191  max_sym=0.000e+00 (tol=1e-12)
+  PASS  n=191  all L[i,i]>0  (min=1.004e+00)
+  PASS  n=191  |logdet_diff|=1.990e-13 (tol=1e-06)  got=103.242 ref=103.242
+
+=== Test 5: known-L  n=192 ===
+  PASS  elapsed>=0 n=192
+  PASS  n=192  max|L-L_ref|=1.432e-14 (tol=1e-10)
+  PASS  n=192  ||A-LL^T||_max=3.553e-15 (tol=1e-08)
+  PASS  n=192  ||A-LL^T||_F/||A||_F=1.699e-16 (tol=1e-10)
+  PASS  n=192  max_sym=0.000e+00 (tol=1e-12)
+  PASS  n=192  all L[i,i]>0  (min=1.004e+00)
+  PASS  n=192  |logdet_diff|=1.990e-13 (tol=1e-06)  got=103.569 ref=103.569
+
+=== Test 5: known-L  n=193 ===
+  PASS  elapsed>=0 n=193
+  PASS  n=193  max|L-L_ref|=1.432e-14 (tol=1e-10)
+  PASS  n=193  ||A-LL^T||_max=3.553e-15 (tol=1e-08)
+  PASS  n=193  ||A-LL^T||_F/||A||_F=1.694e-16 (tol=1e-10)
+  PASS  n=193  max_sym=0.000e+00 (tol=1e-12)
+  PASS  n=193  all L[i,i]>0  (min=1.004e+00)
+  PASS  n=193  |logdet_diff|=1.990e-13 (tol=1e-06)  got=104.365 ref=104.365
+
+=== Test 5: known-L  n=255 ===
+  PASS  elapsed>=0 n=255
+  PASS  n=255  max|L-L_ref|=1.638e-14 (tol=1e-10)
+  PASS  n=255  ||A-LL^T||_max=3.553e-15 (tol=1e-08)
+  PASS  n=255  ||A-LL^T||_F/||A||_F=1.569e-16 (tol=1e-10)
+  PASS  n=255  max_sym=0.000e+00 (tol=1e-12)
+  PASS  n=255  all L[i,i]>0  (min=1.004e+00)
+  PASS  n=255  |logdet_diff|=3.126e-13 (tol=1e-06)  got=137.46 ref=137.46
+
+=== Test 5: known-L  n=256 ===
+  PASS  elapsed>=0 n=256
+  PASS  n=256  max|L-L_ref|=1.638e-14 (tol=1e-10)
+  PASS  n=256  ||A-LL^T||_max=3.553e-15 (tol=1e-08)
+  PASS  n=256  ||A-LL^T||_F/||A||_F=1.563e-16 (tol=1e-10)
+  PASS  n=256  max_sym=0.000e+00 (tol=1e-12)
+  PASS  n=256  all L[i,i]>0  (min=1.004e+00)
+  PASS  n=256  |logdet_diff|=3.126e-13 (tol=1e-06)  got=138.27 ref=138.27
+
+=== Test 5: known-L  n=257 ===
+  PASS  elapsed>=0 n=257
+  PASS  n=257  max|L-L_ref|=1.638e-14 (tol=1e-10)
+  PASS  n=257  ||A-LL^T||_max=3.553e-15 (tol=1e-08)
+  PASS  n=257  ||A-LL^T||_F/||A||_F=1.563e-16 (tol=1e-10)
+  PASS  n=257  max_sym=0.000e+00 (tol=1e-12)
+  PASS  n=257  all L[i,i]>0  (min=1.004e+00)
+  PASS  n=257  |logdet_diff|=3.126e-13 (tol=1e-06)  got=138.774 ref=138.774
+
+=== Test 6: stressed diagonal  n=32  diag 1..1e-12 ===
+  PASS  stressed n=32  max|L-L_ref|=0.000e+00 (tol=1e-10)
+  PASS  stressed n=32  ||A-LL^T||_max=0.000e+00 (tol=1e-08)
+  PASS  stressed n=32  ||A-LL^T||_F/||A||_F=0.000e+00 (tol=1e-10)
+  PASS  stressed n=32  max_sym=0.000e+00 (tol=1e-12)
+  PASS  stressed n=32  all L[i,i]>0  (min=1.000e-12)
+  PASS  stressed n=32  |logdet_diff|=0.000e+00 (tol=1e-06)  got=-884.193 ref=-884.193
+
+=== Test 6: stressed diagonal  n=96  diag 1..1e-12 ===
+  PASS  stressed n=96  max|L-L_ref|=0.000e+00 (tol=1e-10)
+  PASS  stressed n=96  ||A-LL^T||_max=0.000e+00 (tol=1e-08)
+  PASS  stressed n=96  ||A-LL^T||_F/||A||_F=0.000e+00 (tol=1e-10)
+  PASS  stressed n=96  max_sym=0.000e+00 (tol=1e-12)
+  PASS  stressed n=96  all L[i,i]>0  (min=1.000e-12)
+  PASS  stressed n=96  |logdet_diff|=0.000e+00 (tol=1e-06)  got=-2652.58 ref=-2652.58
+
+=== Test 7: corr()  n=50 ===
+  PASS  elapsed>=0 n=50
+  PASS  corr n=50  ||A-LL^T||_max=5.551e-16 (tol=1e-08)
+  PASS  corr n=50  ||A-LL^T||_F/||A||_F=1.522e-16 (tol=1e-10)
+  PASS  corr n=50  max_sym=0.000e+00 (tol=1e-12)
+  PASS  corr n=50  all L[i,i]>0  (min=1.322e-01)
+  PASS  corr n=50  |logdet_diff|=1.648e-11 (tol=1e-06)  got=-196.105 ref=-196.105
+
+=== Test 7: corr()  n=200 ===
+  PASS  elapsed>=0 n=200
+  PASS  corr n=200  ||A-LL^T||_max=7.772e-16 (tol=1e-08)
+  PASS  corr n=200  ||A-LL^T||_F/||A||_F=1.632e-16 (tol=1e-10)
+  PASS  corr n=200  max_sym=0.000e+00 (tol=1e-12)
+  PASS  corr n=200  all L[i,i]>0  (min=1.092e-01)
+  PASS  corr n=200  |logdet_diff|=4.593e-11 (tol=1e-06)  got=-877.103 ref=-877.103
+
+=== Test 7: corr()  n=500 ===
+  PASS  elapsed>=0 n=500
+  PASS  corr n=500  ||A-LL^T||_max=9.992e-16 (tol=1e-08)
+  PASS  corr n=500  ||A-LL^T||_F/||A||_F=1.632e-16 (tol=1e-10)
+  PASS  corr n=500  max_sym=0.000e+00 (tol=1e-12)
+  PASS  corr n=500  all L[i,i]>0  (min=1.041e-01)
+  INFO  corr n=500  logdet=-2251.671388 (no reference)
+
+=== Test 8: multi-thread  n=96 ===
+  PASS  n=96  nt=2 vs nt=1  max|diff|=0.000e+00 (tol=1e-10)
+  PASS  n=96 nt=2  ||A-LL^T||_max=3.553e-15 (tol=1e-08)
+  PASS  n=96 nt=2  ||A-LL^T||_F/||A||_F=2.251e-16 (tol=1e-10)
+  PASS  n=96 nt=2  max_sym=0.000e+00 (tol=1e-12)
+  PASS  n=96 nt=2  all L[i,i]>0  (min=1.004e+00)
+  INFO  n=96 nt=2  logdet=51.98967287 (no reference)
+  PASS  n=96  nt=4 vs nt=1  max|diff|=0.000e+00 (tol=1e-10)
+  PASS  n=96 nt=4  ||A-LL^T||_max=3.553e-15 (tol=1e-08)
+  PASS  n=96 nt=4  ||A-LL^T||_F/||A||_F=2.251e-16 (tol=1e-10)
+  PASS  n=96 nt=4  max_sym=0.000e+00 (tol=1e-12)
+  PASS  n=96 nt=4  all L[i,i]>0  (min=1.004e+00)
+  INFO  n=96 nt=4  logdet=51.98967287 (no reference)
+  PASS  n=96  nt=8 vs nt=1  max|diff|=0.000e+00 (tol=1e-10)
+  PASS  n=96 nt=8  ||A-LL^T||_max=3.553e-15 (tol=1e-08)
+  PASS  n=96 nt=8  ||A-LL^T||_F/||A||_F=2.251e-16 (tol=1e-10)
+  PASS  n=96 nt=8  max_sym=0.000e+00 (tol=1e-12)
+  PASS  n=96 nt=8  all L[i,i]>0  (min=1.004e+00)
+  INFO  n=96 nt=8  logdet=51.98967287 (no reference)
+  PASS  n=96  nt=76 vs nt=1  max|diff|=0.000e+00 (tol=1e-10)
+  PASS  n=96 nt=76  ||A-LL^T||_max=3.553e-15 (tol=1e-08)
+  PASS  n=96 nt=76  ||A-LL^T||_F/||A||_F=2.251e-16 (tol=1e-10)
+  PASS  n=96 nt=76  max_sym=0.000e+00 (tol=1e-12)
+  PASS  n=96 nt=76  all L[i,i]>0  (min=1.004e+00)
+  INFO  n=96 nt=76  logdet=51.98967287 (no reference)
+
+=== Test 8: multi-thread  n=200 ===
+  PASS  n=200  nt=2 vs nt=1  max|diff|=0.000e+00 (tol=1e-10)
+  PASS  n=200 nt=2  ||A-LL^T||_max=3.553e-15 (tol=1e-08)
+  PASS  n=200 nt=2  ||A-LL^T||_F/||A||_F=1.680e-16 (tol=1e-10)
+  PASS  n=200 nt=2  max_sym=0.000e+00 (tol=1e-12)
+  PASS  n=200 nt=2  all L[i,i]>0  (min=1.004e+00)
+  INFO  n=200 nt=2  logdet=108.1486632 (no reference)
+  PASS  n=200  nt=4 vs nt=1  max|diff|=0.000e+00 (tol=1e-10)
+  PASS  n=200 nt=4  ||A-LL^T||_max=3.553e-15 (tol=1e-08)
+  PASS  n=200 nt=4  ||A-LL^T||_F/||A||_F=1.680e-16 (tol=1e-10)
+  PASS  n=200 nt=4  max_sym=0.000e+00 (tol=1e-12)
+  PASS  n=200 nt=4  all L[i,i]>0  (min=1.004e+00)
+  INFO  n=200 nt=4  logdet=108.1486632 (no reference)
+  PASS  n=200  nt=8 vs nt=1  max|diff|=0.000e+00 (tol=1e-10)
+  PASS  n=200 nt=8  ||A-LL^T||_max=3.553e-15 (tol=1e-08)
+  PASS  n=200 nt=8  ||A-LL^T||_F/||A||_F=1.680e-16 (tol=1e-10)
+  PASS  n=200 nt=8  max_sym=0.000e+00 (tol=1e-12)
+  PASS  n=200 nt=8  all L[i,i]>0  (min=1.004e+00)
+  INFO  n=200 nt=8  logdet=108.1486632 (no reference)
+  PASS  n=200  nt=76 vs nt=1  max|diff|=0.000e+00 (tol=1e-10)
+  PASS  n=200 nt=76  ||A-LL^T||_max=3.553e-15 (tol=1e-08)
+  PASS  n=200 nt=76  ||A-LL^T||_F/||A||_F=1.680e-16 (tol=1e-10)
+  PASS  n=200 nt=76  max_sym=0.000e+00 (tol=1e-12)
+  PASS  n=200 nt=76  all L[i,i]>0  (min=1.004e+00)
+  INFO  n=200 nt=76  logdet=108.1486632 (no reference)
+
+=== Test 8: multi-thread  n=500 ===
+  PASS  n=500  nt=2 vs nt=1  max|diff|=0.000e+00 (tol=1e-10)
+  PASS  n=500 nt=2  ||A-LL^T||_max=1.421e-14 (tol=1e-08)
+  PASS  n=500 nt=2  ||A-LL^T||_F/||A||_F=1.586e-16 (tol=1e-10)
+  PASS  n=500 nt=2  max_sym=0.000e+00 (tol=1e-12)
+  PASS  n=500 nt=2  all L[i,i]>0  (min=1.000e+00)
+  INFO  n=500 nt=2  logdet=269.319591 (no reference)
+  PASS  n=500  nt=4 vs nt=1  max|diff|=0.000e+00 (tol=1e-10)
+  PASS  n=500 nt=4  ||A-LL^T||_max=1.421e-14 (tol=1e-08)
+  PASS  n=500 nt=4  ||A-LL^T||_F/||A||_F=1.586e-16 (tol=1e-10)
+  PASS  n=500 nt=4  max_sym=0.000e+00 (tol=1e-12)
+  PASS  n=500 nt=4  all L[i,i]>0  (min=1.000e+00)
+  INFO  n=500 nt=4  logdet=269.319591 (no reference)
+  PASS  n=500  nt=8 vs nt=1  max|diff|=0.000e+00 (tol=1e-10)
+  PASS  n=500 nt=8  ||A-LL^T||_max=1.421e-14 (tol=1e-08)
+  PASS  n=500 nt=8  ||A-LL^T||_F/||A||_F=1.586e-16 (tol=1e-10)
+  PASS  n=500 nt=8  max_sym=0.000e+00 (tol=1e-12)
+  PASS  n=500 nt=8  all L[i,i]>0  (min=1.000e+00)
+  INFO  n=500 nt=8  logdet=269.319591 (no reference)
+  PASS  n=500  nt=76 vs nt=1  max|diff|=0.000e+00 (tol=1e-10)
+  PASS  n=500 nt=76  ||A-LL^T||_max=1.421e-14 (tol=1e-08)
+  PASS  n=500 nt=76  ||A-LL^T||_F/||A||_F=1.586e-16 (tol=1e-10)
+  PASS  n=500 nt=76  max_sym=0.000e+00 (tol=1e-12)
+  PASS  n=500 nt=76  all L[i,i]>0  (min=1.000e+00)
+  INFO  n=500 nt=76  logdet=269.319591 (no reference)
+
+--- 182 / 182 tests passed ---
+
+================================================================
+  build=perf  OMP_NUM_THREADS=2
+================================================================
+mphil_dis_cholesky: n=0 out of range [1, 100000]
+mphil_dis_cholesky: n=100001 out of range [1, 100000]
+=== mphil_dis_cholesky correctness tests ===
+    NB=96
+    TOL_EXACT=1e-10  TOL_KNOWN_L=1e-10  TOL_RECON=1e-08  TOL_REL_RECON=1e-10  TOL_SYM=1e-12  TOL_LOGDET=1e-06
+
+
+=== Test 1: 2x2 spec example ===
+  PASS  L[0,0]=2
+  PASS  L[1,0]=1
+  PASS  L[1,1]=5
+  PASS  L^T[0,1]=1
+  PASS  logdet=log(100)
+  PASS  elapsed>=0
+
+=== Test 2: 3x3 hand-computed ===
+  PASS  L[0,0]=2
+  PASS  L[1,0]=1
+  PASS  L[1,1]=sqrt2
+  PASS  L[2,0]=1
+  PASS  L[2,1]=0
+  PASS  L[2,2]=sqrt2
+  PASS  L^T[0,1]=1
+  PASS  L^T[0,2]=1
+  PASS  L^T[1,2]=0
+  PASS  logdet=log(16)
+  PASS  elapsed>=0
+
+=== Test 3: n=1 edge case ===
+  PASS  c[0]=3
+  PASS  elapsed>=0
+
+=== Test 4: bounds guard ===
+  PASS  n=0 → -1.0
+  PASS  n=100001 → -1.0
+  PASS  n=1 → >=0
+  PASS  n=1: c[0]=2
+
+=== Test 5: known-L  n=5 ===
+  PASS  elapsed>=0 n=5
+  PASS  n=5  max|L-L_ref|=2.220e-16 (tol=1e-10)
+  PASS  n=5  ||A-LL^T||_max=4.441e-16 (tol=1e-08)
+  PASS  n=5  ||A-LL^T||_F/||A||_F=9.446e-17 (tol=1e-10)
+  PASS  n=5  max_sym=0.000e+00 (tol=1e-12)
+  PASS  n=5  all L[i,i]>0  (min=1.071e+00)
+  PASS  n=5  |logdet_diff|=4.441e-16 (tol=1e-06)  got=3.01345 ref=3.01345
+
+=== Test 5: known-L  n=95 ===
+  PASS  elapsed>=0 n=95
+  PASS  n=95  max|L-L_ref|=5.412e-15 (tol=1e-10)
+  PASS  n=95  ||A-LL^T||_max=3.553e-15 (tol=1e-08)
+  PASS  n=95  ||A-LL^T||_F/||A||_F=2.213e-16 (tol=1e-10)
+  PASS  n=95  max_sym=0.000e+00 (tol=1e-12)
+  PASS  n=95  all L[i,i]>0  (min=1.004e+00)
+  PASS  n=95  |logdet_diff|=2.842e-14 (tol=1e-06)  got=51.1897 ref=51.1897
+
+=== Test 5: known-L  n=96 ===
+  PASS  elapsed>=0 n=96
+  PASS  n=96  max|L-L_ref|=5.412e-15 (tol=1e-10)
+  PASS  n=96  ||A-LL^T||_max=3.553e-15 (tol=1e-08)
+  PASS  n=96  ||A-LL^T||_F/||A||_F=2.251e-16 (tol=1e-10)
+  PASS  n=96  max_sym=0.000e+00 (tol=1e-12)
+  PASS  n=96  all L[i,i]>0  (min=1.004e+00)
+  PASS  n=96  |logdet_diff|=2.842e-14 (tol=1e-06)  got=51.9897 ref=51.9897
+
+=== Test 5: known-L  n=97 ===
+  PASS  elapsed>=0 n=97
+  PASS  n=97  max|L-L_ref|=5.412e-15 (tol=1e-10)
+  PASS  n=97  ||A-LL^T||_max=3.553e-15 (tol=1e-08)
+  PASS  n=97  ||A-LL^T||_F/||A||_F=2.245e-16 (tol=1e-10)
+  PASS  n=97  max_sym=0.000e+00 (tol=1e-12)
+  PASS  n=97  all L[i,i]>0  (min=1.004e+00)
+  PASS  n=97  |logdet_diff|=2.842e-14 (tol=1e-06)  got=52.3372 ref=52.3372
+
+=== Test 5: known-L  n=191 ===
+  PASS  elapsed>=0 n=191
+  PASS  n=191  max|L-L_ref|=1.432e-14 (tol=1e-10)
+  PASS  n=191  ||A-LL^T||_max=3.553e-15 (tol=1e-08)
+  PASS  n=191  ||A-LL^T||_F/||A||_F=1.705e-16 (tol=1e-10)
+  PASS  n=191  max_sym=0.000e+00 (tol=1e-12)
+  PASS  n=191  all L[i,i]>0  (min=1.004e+00)
+  PASS  n=191  |logdet_diff|=1.990e-13 (tol=1e-06)  got=103.242 ref=103.242
+
+=== Test 5: known-L  n=192 ===
+  PASS  elapsed>=0 n=192
+  PASS  n=192  max|L-L_ref|=1.432e-14 (tol=1e-10)
+  PASS  n=192  ||A-LL^T||_max=3.553e-15 (tol=1e-08)
+  PASS  n=192  ||A-LL^T||_F/||A||_F=1.699e-16 (tol=1e-10)
+  PASS  n=192  max_sym=0.000e+00 (tol=1e-12)
+  PASS  n=192  all L[i,i]>0  (min=1.004e+00)
+  PASS  n=192  |logdet_diff|=1.990e-13 (tol=1e-06)  got=103.569 ref=103.569
+
+=== Test 5: known-L  n=193 ===
+  PASS  elapsed>=0 n=193
+  PASS  n=193  max|L-L_ref|=1.432e-14 (tol=1e-10)
+  PASS  n=193  ||A-LL^T||_max=3.553e-15 (tol=1e-08)
+  PASS  n=193  ||A-LL^T||_F/||A||_F=1.694e-16 (tol=1e-10)
+  PASS  n=193  max_sym=0.000e+00 (tol=1e-12)
+  PASS  n=193  all L[i,i]>0  (min=1.004e+00)
+  PASS  n=193  |logdet_diff|=1.990e-13 (tol=1e-06)  got=104.365 ref=104.365
+
+=== Test 5: known-L  n=255 ===
+  PASS  elapsed>=0 n=255
+  PASS  n=255  max|L-L_ref|=1.638e-14 (tol=1e-10)
+  PASS  n=255  ||A-LL^T||_max=3.553e-15 (tol=1e-08)
+  PASS  n=255  ||A-LL^T||_F/||A||_F=1.569e-16 (tol=1e-10)
+  PASS  n=255  max_sym=0.000e+00 (tol=1e-12)
+  PASS  n=255  all L[i,i]>0  (min=1.004e+00)
+  PASS  n=255  |logdet_diff|=3.126e-13 (tol=1e-06)  got=137.46 ref=137.46
+
+=== Test 5: known-L  n=256 ===
+  PASS  elapsed>=0 n=256
+  PASS  n=256  max|L-L_ref|=1.638e-14 (tol=1e-10)
+  PASS  n=256  ||A-LL^T||_max=3.553e-15 (tol=1e-08)
+  PASS  n=256  ||A-LL^T||_F/||A||_F=1.563e-16 (tol=1e-10)
+  PASS  n=256  max_sym=0.000e+00 (tol=1e-12)
+  PASS  n=256  all L[i,i]>0  (min=1.004e+00)
+  PASS  n=256  |logdet_diff|=3.126e-13 (tol=1e-06)  got=138.27 ref=138.27
+
+=== Test 5: known-L  n=257 ===
+  PASS  elapsed>=0 n=257
+  PASS  n=257  max|L-L_ref|=1.638e-14 (tol=1e-10)
+  PASS  n=257  ||A-LL^T||_max=3.553e-15 (tol=1e-08)
+  PASS  n=257  ||A-LL^T||_F/||A||_F=1.563e-16 (tol=1e-10)
+  PASS  n=257  max_sym=0.000e+00 (tol=1e-12)
+  PASS  n=257  all L[i,i]>0  (min=1.004e+00)
+  PASS  n=257  |logdet_diff|=3.126e-13 (tol=1e-06)  got=138.774 ref=138.774
+
+=== Test 6: stressed diagonal  n=32  diag 1..1e-12 ===
+  PASS  stressed n=32  max|L-L_ref|=0.000e+00 (tol=1e-10)
+  PASS  stressed n=32  ||A-LL^T||_max=0.000e+00 (tol=1e-08)
+  PASS  stressed n=32  ||A-LL^T||_F/||A||_F=0.000e+00 (tol=1e-10)
+  PASS  stressed n=32  max_sym=0.000e+00 (tol=1e-12)
+  PASS  stressed n=32  all L[i,i]>0  (min=1.000e-12)
+  PASS  stressed n=32  |logdet_diff|=0.000e+00 (tol=1e-06)  got=-884.193 ref=-884.193
+
+=== Test 6: stressed diagonal  n=96  diag 1..1e-12 ===
+  PASS  stressed n=96  max|L-L_ref|=0.000e+00 (tol=1e-10)
+  PASS  stressed n=96  ||A-LL^T||_max=0.000e+00 (tol=1e-08)
+  PASS  stressed n=96  ||A-LL^T||_F/||A||_F=0.000e+00 (tol=1e-10)
+  PASS  stressed n=96  max_sym=0.000e+00 (tol=1e-12)
+  PASS  stressed n=96  all L[i,i]>0  (min=1.000e-12)
+  PASS  stressed n=96  |logdet_diff|=0.000e+00 (tol=1e-06)  got=-2652.58 ref=-2652.58
+
+=== Test 7: corr()  n=50 ===
+  PASS  elapsed>=0 n=50
+  PASS  corr n=50  ||A-LL^T||_max=5.551e-16 (tol=1e-08)
+  PASS  corr n=50  ||A-LL^T||_F/||A||_F=1.522e-16 (tol=1e-10)
+  PASS  corr n=50  max_sym=0.000e+00 (tol=1e-12)
+  PASS  corr n=50  all L[i,i]>0  (min=1.322e-01)
+  PASS  corr n=50  |logdet_diff|=1.648e-11 (tol=1e-06)  got=-196.105 ref=-196.105
+
+=== Test 7: corr()  n=200 ===
+  PASS  elapsed>=0 n=200
+  PASS  corr n=200  ||A-LL^T||_max=7.772e-16 (tol=1e-08)
+  PASS  corr n=200  ||A-LL^T||_F/||A||_F=1.632e-16 (tol=1e-10)
+  PASS  corr n=200  max_sym=0.000e+00 (tol=1e-12)
+  PASS  corr n=200  all L[i,i]>0  (min=1.092e-01)
+  PASS  corr n=200  |logdet_diff|=4.593e-11 (tol=1e-06)  got=-877.103 ref=-877.103
+
+=== Test 7: corr()  n=500 ===
+  PASS  elapsed>=0 n=500
+  PASS  corr n=500  ||A-LL^T||_max=9.992e-16 (tol=1e-08)
+  PASS  corr n=500  ||A-LL^T||_F/||A||_F=1.632e-16 (tol=1e-10)
+  PASS  corr n=500  max_sym=0.000e+00 (tol=1e-12)
+  PASS  corr n=500  all L[i,i]>0  (min=1.041e-01)
+  INFO  corr n=500  logdet=-2251.671388 (no reference)
+
+=== Test 8: multi-thread  n=96 ===
+  PASS  n=96  nt=2 vs nt=1  max|diff|=0.000e+00 (tol=1e-10)
+  PASS  n=96 nt=2  ||A-LL^T||_max=3.553e-15 (tol=1e-08)
+  PASS  n=96 nt=2  ||A-LL^T||_F/||A||_F=2.251e-16 (tol=1e-10)
+  PASS  n=96 nt=2  max_sym=0.000e+00 (tol=1e-12)
+  PASS  n=96 nt=2  all L[i,i]>0  (min=1.004e+00)
+  INFO  n=96 nt=2  logdet=51.98967287 (no reference)
+  PASS  n=96  nt=4 vs nt=1  max|diff|=0.000e+00 (tol=1e-10)
+  PASS  n=96 nt=4  ||A-LL^T||_max=3.553e-15 (tol=1e-08)
+  PASS  n=96 nt=4  ||A-LL^T||_F/||A||_F=2.251e-16 (tol=1e-10)
+  PASS  n=96 nt=4  max_sym=0.000e+00 (tol=1e-12)
+  PASS  n=96 nt=4  all L[i,i]>0  (min=1.004e+00)
+  INFO  n=96 nt=4  logdet=51.98967287 (no reference)
+  PASS  n=96  nt=8 vs nt=1  max|diff|=0.000e+00 (tol=1e-10)
+  PASS  n=96 nt=8  ||A-LL^T||_max=3.553e-15 (tol=1e-08)
+  PASS  n=96 nt=8  ||A-LL^T||_F/||A||_F=2.251e-16 (tol=1e-10)
+  PASS  n=96 nt=8  max_sym=0.000e+00 (tol=1e-12)
+  PASS  n=96 nt=8  all L[i,i]>0  (min=1.004e+00)
+  INFO  n=96 nt=8  logdet=51.98967287 (no reference)
+  PASS  n=96  nt=76 vs nt=1  max|diff|=0.000e+00 (tol=1e-10)
+  PASS  n=96 nt=76  ||A-LL^T||_max=3.553e-15 (tol=1e-08)
+  PASS  n=96 nt=76  ||A-LL^T||_F/||A||_F=2.251e-16 (tol=1e-10)
+  PASS  n=96 nt=76  max_sym=0.000e+00 (tol=1e-12)
+  PASS  n=96 nt=76  all L[i,i]>0  (min=1.004e+00)
+  INFO  n=96 nt=76  logdet=51.98967287 (no reference)
+
+=== Test 8: multi-thread  n=200 ===
+  PASS  n=200  nt=2 vs nt=1  max|diff|=0.000e+00 (tol=1e-10)
+  PASS  n=200 nt=2  ||A-LL^T||_max=3.553e-15 (tol=1e-08)
+  PASS  n=200 nt=2  ||A-LL^T||_F/||A||_F=1.680e-16 (tol=1e-10)
+  PASS  n=200 nt=2  max_sym=0.000e+00 (tol=1e-12)
+  PASS  n=200 nt=2  all L[i,i]>0  (min=1.004e+00)
+  INFO  n=200 nt=2  logdet=108.1486632 (no reference)
+  PASS  n=200  nt=4 vs nt=1  max|diff|=0.000e+00 (tol=1e-10)
+  PASS  n=200 nt=4  ||A-LL^T||_max=3.553e-15 (tol=1e-08)
+  PASS  n=200 nt=4  ||A-LL^T||_F/||A||_F=1.680e-16 (tol=1e-10)
+  PASS  n=200 nt=4  max_sym=0.000e+00 (tol=1e-12)
+  PASS  n=200 nt=4  all L[i,i]>0  (min=1.004e+00)
+  INFO  n=200 nt=4  logdet=108.1486632 (no reference)
+  PASS  n=200  nt=8 vs nt=1  max|diff|=0.000e+00 (tol=1e-10)
+  PASS  n=200 nt=8  ||A-LL^T||_max=3.553e-15 (tol=1e-08)
+  PASS  n=200 nt=8  ||A-LL^T||_F/||A||_F=1.680e-16 (tol=1e-10)
+  PASS  n=200 nt=8  max_sym=0.000e+00 (tol=1e-12)
+  PASS  n=200 nt=8  all L[i,i]>0  (min=1.004e+00)
+  INFO  n=200 nt=8  logdet=108.1486632 (no reference)
+  PASS  n=200  nt=76 vs nt=1  max|diff|=0.000e+00 (tol=1e-10)
+  PASS  n=200 nt=76  ||A-LL^T||_max=3.553e-15 (tol=1e-08)
+  PASS  n=200 nt=76  ||A-LL^T||_F/||A||_F=1.680e-16 (tol=1e-10)
+  PASS  n=200 nt=76  max_sym=0.000e+00 (tol=1e-12)
+  PASS  n=200 nt=76  all L[i,i]>0  (min=1.004e+00)
+  INFO  n=200 nt=76  logdet=108.1486632 (no reference)
+
+=== Test 8: multi-thread  n=500 ===
+  PASS  n=500  nt=2 vs nt=1  max|diff|=0.000e+00 (tol=1e-10)
+  PASS  n=500 nt=2  ||A-LL^T||_max=1.421e-14 (tol=1e-08)
+  PASS  n=500 nt=2  ||A-LL^T||_F/||A||_F=1.586e-16 (tol=1e-10)
+  PASS  n=500 nt=2  max_sym=0.000e+00 (tol=1e-12)
+  PASS  n=500 nt=2  all L[i,i]>0  (min=1.000e+00)
+  INFO  n=500 nt=2  logdet=269.319591 (no reference)
+  PASS  n=500  nt=4 vs nt=1  max|diff|=0.000e+00 (tol=1e-10)
+  PASS  n=500 nt=4  ||A-LL^T||_max=1.421e-14 (tol=1e-08)
+  PASS  n=500 nt=4  ||A-LL^T||_F/||A||_F=1.586e-16 (tol=1e-10)
+  PASS  n=500 nt=4  max_sym=0.000e+00 (tol=1e-12)
+  PASS  n=500 nt=4  all L[i,i]>0  (min=1.000e+00)
+  INFO  n=500 nt=4  logdet=269.319591 (no reference)
+  PASS  n=500  nt=8 vs nt=1  max|diff|=0.000e+00 (tol=1e-10)
+  PASS  n=500 nt=8  ||A-LL^T||_max=1.421e-14 (tol=1e-08)
+  PASS  n=500 nt=8  ||A-LL^T||_F/||A||_F=1.586e-16 (tol=1e-10)
+  PASS  n=500 nt=8  max_sym=0.000e+00 (tol=1e-12)
+  PASS  n=500 nt=8  all L[i,i]>0  (min=1.000e+00)
+  INFO  n=500 nt=8  logdet=269.319591 (no reference)
+  PASS  n=500  nt=76 vs nt=1  max|diff|=0.000e+00 (tol=1e-10)
+  PASS  n=500 nt=76  ||A-LL^T||_max=1.421e-14 (tol=1e-08)
+  PASS  n=500 nt=76  ||A-LL^T||_F/||A||_F=1.586e-16 (tol=1e-10)
+  PASS  n=500 nt=76  max_sym=0.000e+00 (tol=1e-12)
+  PASS  n=500 nt=76  all L[i,i]>0  (min=1.000e+00)
+  INFO  n=500 nt=76  logdet=269.319591 (no reference)
+
+--- 182 / 182 tests passed ---
+
+================================================================
+  build=perf  OMP_NUM_THREADS=4
+================================================================
+mphil_dis_cholesky: n=0 out of range [1, 100000]
+mphil_dis_cholesky: n=100001 out of range [1, 100000]
+=== mphil_dis_cholesky correctness tests ===
+    NB=96
+    TOL_EXACT=1e-10  TOL_KNOWN_L=1e-10  TOL_RECON=1e-08  TOL_REL_RECON=1e-10  TOL_SYM=1e-12  TOL_LOGDET=1e-06
+
+
+=== Test 1: 2x2 spec example ===
+  PASS  L[0,0]=2
+  PASS  L[1,0]=1
+  PASS  L[1,1]=5
+  PASS  L^T[0,1]=1
+  PASS  logdet=log(100)
+  PASS  elapsed>=0
+
+=== Test 2: 3x3 hand-computed ===
+  PASS  L[0,0]=2
+  PASS  L[1,0]=1
+  PASS  L[1,1]=sqrt2
+  PASS  L[2,0]=1
+  PASS  L[2,1]=0
+  PASS  L[2,2]=sqrt2
+  PASS  L^T[0,1]=1
+  PASS  L^T[0,2]=1
+  PASS  L^T[1,2]=0
+  PASS  logdet=log(16)
+  PASS  elapsed>=0
+
+=== Test 3: n=1 edge case ===
+  PASS  c[0]=3
+  PASS  elapsed>=0
+
+=== Test 4: bounds guard ===
+  PASS  n=0 → -1.0
+  PASS  n=100001 → -1.0
+  PASS  n=1 → >=0
+  PASS  n=1: c[0]=2
+
+=== Test 5: known-L  n=5 ===
+  PASS  elapsed>=0 n=5
+  PASS  n=5  max|L-L_ref|=2.220e-16 (tol=1e-10)
+  PASS  n=5  ||A-LL^T||_max=4.441e-16 (tol=1e-08)
+  PASS  n=5  ||A-LL^T||_F/||A||_F=9.446e-17 (tol=1e-10)
+  PASS  n=5  max_sym=0.000e+00 (tol=1e-12)
+  PASS  n=5  all L[i,i]>0  (min=1.071e+00)
+  PASS  n=5  |logdet_diff|=4.441e-16 (tol=1e-06)  got=3.01345 ref=3.01345
+
+=== Test 5: known-L  n=95 ===
+  PASS  elapsed>=0 n=95
+  PASS  n=95  max|L-L_ref|=5.412e-15 (tol=1e-10)
+  PASS  n=95  ||A-LL^T||_max=3.553e-15 (tol=1e-08)
+  PASS  n=95  ||A-LL^T||_F/||A||_F=2.213e-16 (tol=1e-10)
+  PASS  n=95  max_sym=0.000e+00 (tol=1e-12)
+  PASS  n=95  all L[i,i]>0  (min=1.004e+00)
+  PASS  n=95  |logdet_diff|=2.842e-14 (tol=1e-06)  got=51.1897 ref=51.1897
+
+=== Test 5: known-L  n=96 ===
+  PASS  elapsed>=0 n=96
+  PASS  n=96  max|L-L_ref|=5.412e-15 (tol=1e-10)
+  PASS  n=96  ||A-LL^T||_max=3.553e-15 (tol=1e-08)
+  PASS  n=96  ||A-LL^T||_F/||A||_F=2.251e-16 (tol=1e-10)
+  PASS  n=96  max_sym=0.000e+00 (tol=1e-12)
+  PASS  n=96  all L[i,i]>0  (min=1.004e+00)
+  PASS  n=96  |logdet_diff|=2.842e-14 (tol=1e-06)  got=51.9897 ref=51.9897
+
+=== Test 5: known-L  n=97 ===
+  PASS  elapsed>=0 n=97
+  PASS  n=97  max|L-L_ref|=5.412e-15 (tol=1e-10)
+  PASS  n=97  ||A-LL^T||_max=3.553e-15 (tol=1e-08)
+  PASS  n=97  ||A-LL^T||_F/||A||_F=2.245e-16 (tol=1e-10)
+  PASS  n=97  max_sym=0.000e+00 (tol=1e-12)
+  PASS  n=97  all L[i,i]>0  (min=1.004e+00)
+  PASS  n=97  |logdet_diff|=2.842e-14 (tol=1e-06)  got=52.3372 ref=52.3372
+
+=== Test 5: known-L  n=191 ===
+  PASS  elapsed>=0 n=191
+  PASS  n=191  max|L-L_ref|=1.432e-14 (tol=1e-10)
+  PASS  n=191  ||A-LL^T||_max=3.553e-15 (tol=1e-08)
+  PASS  n=191  ||A-LL^T||_F/||A||_F=1.705e-16 (tol=1e-10)
+  PASS  n=191  max_sym=0.000e+00 (tol=1e-12)
+  PASS  n=191  all L[i,i]>0  (min=1.004e+00)
+  PASS  n=191  |logdet_diff|=1.990e-13 (tol=1e-06)  got=103.242 ref=103.242
+
+=== Test 5: known-L  n=192 ===
+  PASS  elapsed>=0 n=192
+  PASS  n=192  max|L-L_ref|=1.432e-14 (tol=1e-10)
+  PASS  n=192  ||A-LL^T||_max=3.553e-15 (tol=1e-08)
+  PASS  n=192  ||A-LL^T||_F/||A||_F=1.699e-16 (tol=1e-10)
+  PASS  n=192  max_sym=0.000e+00 (tol=1e-12)
+  PASS  n=192  all L[i,i]>0  (min=1.004e+00)
+  PASS  n=192  |logdet_diff|=1.990e-13 (tol=1e-06)  got=103.569 ref=103.569
+
+=== Test 5: known-L  n=193 ===
+  PASS  elapsed>=0 n=193
+  PASS  n=193  max|L-L_ref|=1.432e-14 (tol=1e-10)
+  PASS  n=193  ||A-LL^T||_max=3.553e-15 (tol=1e-08)
+  PASS  n=193  ||A-LL^T||_F/||A||_F=1.694e-16 (tol=1e-10)
+  PASS  n=193  max_sym=0.000e+00 (tol=1e-12)
+  PASS  n=193  all L[i,i]>0  (min=1.004e+00)
+  PASS  n=193  |logdet_diff|=1.990e-13 (tol=1e-06)  got=104.365 ref=104.365
+
+=== Test 5: known-L  n=255 ===
+  PASS  elapsed>=0 n=255
+  PASS  n=255  max|L-L_ref|=1.638e-14 (tol=1e-10)
+  PASS  n=255  ||A-LL^T||_max=3.553e-15 (tol=1e-08)
+  PASS  n=255  ||A-LL^T||_F/||A||_F=1.569e-16 (tol=1e-10)
+  PASS  n=255  max_sym=0.000e+00 (tol=1e-12)
+  PASS  n=255  all L[i,i]>0  (min=1.004e+00)
+  PASS  n=255  |logdet_diff|=3.126e-13 (tol=1e-06)  got=137.46 ref=137.46
+
+=== Test 5: known-L  n=256 ===
+  PASS  elapsed>=0 n=256
+  PASS  n=256  max|L-L_ref|=1.638e-14 (tol=1e-10)
+  PASS  n=256  ||A-LL^T||_max=3.553e-15 (tol=1e-08)
+  PASS  n=256  ||A-LL^T||_F/||A||_F=1.563e-16 (tol=1e-10)
+  PASS  n=256  max_sym=0.000e+00 (tol=1e-12)
+  PASS  n=256  all L[i,i]>0  (min=1.004e+00)
+  PASS  n=256  |logdet_diff|=3.126e-13 (tol=1e-06)  got=138.27 ref=138.27
+
+=== Test 5: known-L  n=257 ===
+  PASS  elapsed>=0 n=257
+  PASS  n=257  max|L-L_ref|=1.638e-14 (tol=1e-10)
+  PASS  n=257  ||A-LL^T||_max=3.553e-15 (tol=1e-08)
+  PASS  n=257  ||A-LL^T||_F/||A||_F=1.563e-16 (tol=1e-10)
+  PASS  n=257  max_sym=0.000e+00 (tol=1e-12)
+  PASS  n=257  all L[i,i]>0  (min=1.004e+00)
+  PASS  n=257  |logdet_diff|=3.126e-13 (tol=1e-06)  got=138.774 ref=138.774
+
+=== Test 6: stressed diagonal  n=32  diag 1..1e-12 ===
+  PASS  stressed n=32  max|L-L_ref|=0.000e+00 (tol=1e-10)
+  PASS  stressed n=32  ||A-LL^T||_max=0.000e+00 (tol=1e-08)
+  PASS  stressed n=32  ||A-LL^T||_F/||A||_F=0.000e+00 (tol=1e-10)
+  PASS  stressed n=32  max_sym=0.000e+00 (tol=1e-12)
+  PASS  stressed n=32  all L[i,i]>0  (min=1.000e-12)
+  PASS  stressed n=32  |logdet_diff|=0.000e+00 (tol=1e-06)  got=-884.193 ref=-884.193
+
+=== Test 6: stressed diagonal  n=96  diag 1..1e-12 ===
+  PASS  stressed n=96  max|L-L_ref|=0.000e+00 (tol=1e-10)
+  PASS  stressed n=96  ||A-LL^T||_max=0.000e+00 (tol=1e-08)
+  PASS  stressed n=96  ||A-LL^T||_F/||A||_F=0.000e+00 (tol=1e-10)
+  PASS  stressed n=96  max_sym=0.000e+00 (tol=1e-12)
+  PASS  stressed n=96  all L[i,i]>0  (min=1.000e-12)
+  PASS  stressed n=96  |logdet_diff|=0.000e+00 (tol=1e-06)  got=-2652.58 ref=-2652.58
+
+=== Test 7: corr()  n=50 ===
+  PASS  elapsed>=0 n=50
+  PASS  corr n=50  ||A-LL^T||_max=5.551e-16 (tol=1e-08)
+  PASS  corr n=50  ||A-LL^T||_F/||A||_F=1.522e-16 (tol=1e-10)
+  PASS  corr n=50  max_sym=0.000e+00 (tol=1e-12)
+  PASS  corr n=50  all L[i,i]>0  (min=1.322e-01)
+  PASS  corr n=50  |logdet_diff|=1.648e-11 (tol=1e-06)  got=-196.105 ref=-196.105
+
+=== Test 7: corr()  n=200 ===
+  PASS  elapsed>=0 n=200
+  PASS  corr n=200  ||A-LL^T||_max=7.772e-16 (tol=1e-08)
+  PASS  corr n=200  ||A-LL^T||_F/||A||_F=1.632e-16 (tol=1e-10)
+  PASS  corr n=200  max_sym=0.000e+00 (tol=1e-12)
+  PASS  corr n=200  all L[i,i]>0  (min=1.092e-01)
+  PASS  corr n=200  |logdet_diff|=4.593e-11 (tol=1e-06)  got=-877.103 ref=-877.103
+
+=== Test 7: corr()  n=500 ===
+  PASS  elapsed>=0 n=500
+  PASS  corr n=500  ||A-LL^T||_max=9.992e-16 (tol=1e-08)
+  PASS  corr n=500  ||A-LL^T||_F/||A||_F=1.632e-16 (tol=1e-10)
+  PASS  corr n=500  max_sym=0.000e+00 (tol=1e-12)
+  PASS  corr n=500  all L[i,i]>0  (min=1.041e-01)
+  INFO  corr n=500  logdet=-2251.671388 (no reference)
+
+=== Test 8: multi-thread  n=96 ===
+  PASS  n=96  nt=2 vs nt=1  max|diff|=0.000e+00 (tol=1e-10)
+  PASS  n=96 nt=2  ||A-LL^T||_max=3.553e-15 (tol=1e-08)
+  PASS  n=96 nt=2  ||A-LL^T||_F/||A||_F=2.251e-16 (tol=1e-10)
+  PASS  n=96 nt=2  max_sym=0.000e+00 (tol=1e-12)
+  PASS  n=96 nt=2  all L[i,i]>0  (min=1.004e+00)
+  INFO  n=96 nt=2  logdet=51.98967287 (no reference)
+  PASS  n=96  nt=4 vs nt=1  max|diff|=0.000e+00 (tol=1e-10)
+  PASS  n=96 nt=4  ||A-LL^T||_max=3.553e-15 (tol=1e-08)
+  PASS  n=96 nt=4  ||A-LL^T||_F/||A||_F=2.251e-16 (tol=1e-10)
+  PASS  n=96 nt=4  max_sym=0.000e+00 (tol=1e-12)
+  PASS  n=96 nt=4  all L[i,i]>0  (min=1.004e+00)
+  INFO  n=96 nt=4  logdet=51.98967287 (no reference)
+  PASS  n=96  nt=8 vs nt=1  max|diff|=0.000e+00 (tol=1e-10)
+  PASS  n=96 nt=8  ||A-LL^T||_max=3.553e-15 (tol=1e-08)
+  PASS  n=96 nt=8  ||A-LL^T||_F/||A||_F=2.251e-16 (tol=1e-10)
+  PASS  n=96 nt=8  max_sym=0.000e+00 (tol=1e-12)
+  PASS  n=96 nt=8  all L[i,i]>0  (min=1.004e+00)
+  INFO  n=96 nt=8  logdet=51.98967287 (no reference)
+  PASS  n=96  nt=76 vs nt=1  max|diff|=0.000e+00 (tol=1e-10)
+  PASS  n=96 nt=76  ||A-LL^T||_max=3.553e-15 (tol=1e-08)
+  PASS  n=96 nt=76  ||A-LL^T||_F/||A||_F=2.251e-16 (tol=1e-10)
+  PASS  n=96 nt=76  max_sym=0.000e+00 (tol=1e-12)
+  PASS  n=96 nt=76  all L[i,i]>0  (min=1.004e+00)
+  INFO  n=96 nt=76  logdet=51.98967287 (no reference)
+
+=== Test 8: multi-thread  n=200 ===
+  PASS  n=200  nt=2 vs nt=1  max|diff|=0.000e+00 (tol=1e-10)
+  PASS  n=200 nt=2  ||A-LL^T||_max=3.553e-15 (tol=1e-08)
+  PASS  n=200 nt=2  ||A-LL^T||_F/||A||_F=1.680e-16 (tol=1e-10)
+  PASS  n=200 nt=2  max_sym=0.000e+00 (tol=1e-12)
+  PASS  n=200 nt=2  all L[i,i]>0  (min=1.004e+00)
+  INFO  n=200 nt=2  logdet=108.1486632 (no reference)
+  PASS  n=200  nt=4 vs nt=1  max|diff|=0.000e+00 (tol=1e-10)
+  PASS  n=200 nt=4  ||A-LL^T||_max=3.553e-15 (tol=1e-08)
+  PASS  n=200 nt=4  ||A-LL^T||_F/||A||_F=1.680e-16 (tol=1e-10)
+  PASS  n=200 nt=4  max_sym=0.000e+00 (tol=1e-12)
+  PASS  n=200 nt=4  all L[i,i]>0  (min=1.004e+00)
+  INFO  n=200 nt=4  logdet=108.1486632 (no reference)
+  PASS  n=200  nt=8 vs nt=1  max|diff|=0.000e+00 (tol=1e-10)
+  PASS  n=200 nt=8  ||A-LL^T||_max=3.553e-15 (tol=1e-08)
+  PASS  n=200 nt=8  ||A-LL^T||_F/||A||_F=1.680e-16 (tol=1e-10)
+  PASS  n=200 nt=8  max_sym=0.000e+00 (tol=1e-12)
+  PASS  n=200 nt=8  all L[i,i]>0  (min=1.004e+00)
+  INFO  n=200 nt=8  logdet=108.1486632 (no reference)
+  PASS  n=200  nt=76 vs nt=1  max|diff|=0.000e+00 (tol=1e-10)
+  PASS  n=200 nt=76  ||A-LL^T||_max=3.553e-15 (tol=1e-08)
+  PASS  n=200 nt=76  ||A-LL^T||_F/||A||_F=1.680e-16 (tol=1e-10)
+  PASS  n=200 nt=76  max_sym=0.000e+00 (tol=1e-12)
+  PASS  n=200 nt=76  all L[i,i]>0  (min=1.004e+00)
+  INFO  n=200 nt=76  logdet=108.1486632 (no reference)
+
+=== Test 8: multi-thread  n=500 ===
+  PASS  n=500  nt=2 vs nt=1  max|diff|=0.000e+00 (tol=1e-10)
+  PASS  n=500 nt=2  ||A-LL^T||_max=1.421e-14 (tol=1e-08)
+  PASS  n=500 nt=2  ||A-LL^T||_F/||A||_F=1.586e-16 (tol=1e-10)
+  PASS  n=500 nt=2  max_sym=0.000e+00 (tol=1e-12)
+  PASS  n=500 nt=2  all L[i,i]>0  (min=1.000e+00)
+  INFO  n=500 nt=2  logdet=269.319591 (no reference)
+  PASS  n=500  nt=4 vs nt=1  max|diff|=0.000e+00 (tol=1e-10)
+  PASS  n=500 nt=4  ||A-LL^T||_max=1.421e-14 (tol=1e-08)
+  PASS  n=500 nt=4  ||A-LL^T||_F/||A||_F=1.586e-16 (tol=1e-10)
+  PASS  n=500 nt=4  max_sym=0.000e+00 (tol=1e-12)
+  PASS  n=500 nt=4  all L[i,i]>0  (min=1.000e+00)
+  INFO  n=500 nt=4  logdet=269.319591 (no reference)
+  PASS  n=500  nt=8 vs nt=1  max|diff|=0.000e+00 (tol=1e-10)
+  PASS  n=500 nt=8  ||A-LL^T||_max=1.421e-14 (tol=1e-08)
+  PASS  n=500 nt=8  ||A-LL^T||_F/||A||_F=1.586e-16 (tol=1e-10)
+  PASS  n=500 nt=8  max_sym=0.000e+00 (tol=1e-12)
+  PASS  n=500 nt=8  all L[i,i]>0  (min=1.000e+00)
+  INFO  n=500 nt=8  logdet=269.319591 (no reference)
+  PASS  n=500  nt=76 vs nt=1  max|diff|=0.000e+00 (tol=1e-10)
+  PASS  n=500 nt=76  ||A-LL^T||_max=1.421e-14 (tol=1e-08)
+  PASS  n=500 nt=76  ||A-LL^T||_F/||A||_F=1.586e-16 (tol=1e-10)
+  PASS  n=500 nt=76  max_sym=0.000e+00 (tol=1e-12)
+  PASS  n=500 nt=76  all L[i,i]>0  (min=1.000e+00)
+  INFO  n=500 nt=76  logdet=269.319591 (no reference)
+
+--- 182 / 182 tests passed ---
+
+================================================================
+  build=perf  OMP_NUM_THREADS=8
+================================================================
+mphil_dis_cholesky: n=0 out of range [1, 100000]
+mphil_dis_cholesky: n=100001 out of range [1, 100000]
+=== mphil_dis_cholesky correctness tests ===
+    NB=96
+    TOL_EXACT=1e-10  TOL_KNOWN_L=1e-10  TOL_RECON=1e-08  TOL_REL_RECON=1e-10  TOL_SYM=1e-12  TOL_LOGDET=1e-06
+
+
+=== Test 1: 2x2 spec example ===
+  PASS  L[0,0]=2
+  PASS  L[1,0]=1
+  PASS  L[1,1]=5
+  PASS  L^T[0,1]=1
+  PASS  logdet=log(100)
+  PASS  elapsed>=0
+
+=== Test 2: 3x3 hand-computed ===
+  PASS  L[0,0]=2
+  PASS  L[1,0]=1
+  PASS  L[1,1]=sqrt2
+  PASS  L[2,0]=1
+  PASS  L[2,1]=0
+  PASS  L[2,2]=sqrt2
+  PASS  L^T[0,1]=1
+  PASS  L^T[0,2]=1
+  PASS  L^T[1,2]=0
+  PASS  logdet=log(16)
+  PASS  elapsed>=0
+
+=== Test 3: n=1 edge case ===
+  PASS  c[0]=3
+  PASS  elapsed>=0
+
+=== Test 4: bounds guard ===
+  PASS  n=0 → -1.0
+  PASS  n=100001 → -1.0
+  PASS  n=1 → >=0
+  PASS  n=1: c[0]=2
+
+=== Test 5: known-L  n=5 ===
+  PASS  elapsed>=0 n=5
+  PASS  n=5  max|L-L_ref|=2.220e-16 (tol=1e-10)
+  PASS  n=5  ||A-LL^T||_max=4.441e-16 (tol=1e-08)
+  PASS  n=5  ||A-LL^T||_F/||A||_F=9.446e-17 (tol=1e-10)
+  PASS  n=5  max_sym=0.000e+00 (tol=1e-12)
+  PASS  n=5  all L[i,i]>0  (min=1.071e+00)
+  PASS  n=5  |logdet_diff|=4.441e-16 (tol=1e-06)  got=3.01345 ref=3.01345
+
+=== Test 5: known-L  n=95 ===
+  PASS  elapsed>=0 n=95
+  PASS  n=95  max|L-L_ref|=5.412e-15 (tol=1e-10)
+  PASS  n=95  ||A-LL^T||_max=3.553e-15 (tol=1e-08)
+  PASS  n=95  ||A-LL^T||_F/||A||_F=2.213e-16 (tol=1e-10)
+  PASS  n=95  max_sym=0.000e+00 (tol=1e-12)
+  PASS  n=95  all L[i,i]>0  (min=1.004e+00)
+  PASS  n=95  |logdet_diff|=2.842e-14 (tol=1e-06)  got=51.1897 ref=51.1897
+
+=== Test 5: known-L  n=96 ===
+  PASS  elapsed>=0 n=96
+  PASS  n=96  max|L-L_ref|=5.412e-15 (tol=1e-10)
+  PASS  n=96  ||A-LL^T||_max=3.553e-15 (tol=1e-08)
+  PASS  n=96  ||A-LL^T||_F/||A||_F=2.251e-16 (tol=1e-10)
+  PASS  n=96  max_sym=0.000e+00 (tol=1e-12)
+  PASS  n=96  all L[i,i]>0  (min=1.004e+00)
+  PASS  n=96  |logdet_diff|=2.842e-14 (tol=1e-06)  got=51.9897 ref=51.9897
+
+=== Test 5: known-L  n=97 ===
+  PASS  elapsed>=0 n=97
+  PASS  n=97  max|L-L_ref|=5.412e-15 (tol=1e-10)
+  PASS  n=97  ||A-LL^T||_max=3.553e-15 (tol=1e-08)
+  PASS  n=97  ||A-LL^T||_F/||A||_F=2.245e-16 (tol=1e-10)
+  PASS  n=97  max_sym=0.000e+00 (tol=1e-12)
+  PASS  n=97  all L[i,i]>0  (min=1.004e+00)
+  PASS  n=97  |logdet_diff|=2.842e-14 (tol=1e-06)  got=52.3372 ref=52.3372
+
+=== Test 5: known-L  n=191 ===
+  PASS  elapsed>=0 n=191
+  PASS  n=191  max|L-L_ref|=1.432e-14 (tol=1e-10)
+  PASS  n=191  ||A-LL^T||_max=3.553e-15 (tol=1e-08)
+  PASS  n=191  ||A-LL^T||_F/||A||_F=1.705e-16 (tol=1e-10)
+  PASS  n=191  max_sym=0.000e+00 (tol=1e-12)
+  PASS  n=191  all L[i,i]>0  (min=1.004e+00)
+  PASS  n=191  |logdet_diff|=1.990e-13 (tol=1e-06)  got=103.242 ref=103.242
+
+=== Test 5: known-L  n=192 ===
+  PASS  elapsed>=0 n=192
+  PASS  n=192  max|L-L_ref|=1.432e-14 (tol=1e-10)
+  PASS  n=192  ||A-LL^T||_max=3.553e-15 (tol=1e-08)
+  PASS  n=192  ||A-LL^T||_F/||A||_F=1.699e-16 (tol=1e-10)
+  PASS  n=192  max_sym=0.000e+00 (tol=1e-12)
+  PASS  n=192  all L[i,i]>0  (min=1.004e+00)
+  PASS  n=192  |logdet_diff|=1.990e-13 (tol=1e-06)  got=103.569 ref=103.569
+
+=== Test 5: known-L  n=193 ===
+  PASS  elapsed>=0 n=193
+  PASS  n=193  max|L-L_ref|=1.432e-14 (tol=1e-10)
+  PASS  n=193  ||A-LL^T||_max=3.553e-15 (tol=1e-08)
+  PASS  n=193  ||A-LL^T||_F/||A||_F=1.694e-16 (tol=1e-10)
+  PASS  n=193  max_sym=0.000e+00 (tol=1e-12)
+  PASS  n=193  all L[i,i]>0  (min=1.004e+00)
+  PASS  n=193  |logdet_diff|=1.990e-13 (tol=1e-06)  got=104.365 ref=104.365
+
+=== Test 5: known-L  n=255 ===
+  PASS  elapsed>=0 n=255
+  PASS  n=255  max|L-L_ref|=1.638e-14 (tol=1e-10)
+  PASS  n=255  ||A-LL^T||_max=3.553e-15 (tol=1e-08)
+  PASS  n=255  ||A-LL^T||_F/||A||_F=1.569e-16 (tol=1e-10)
+  PASS  n=255  max_sym=0.000e+00 (tol=1e-12)
+  PASS  n=255  all L[i,i]>0  (min=1.004e+00)
+  PASS  n=255  |logdet_diff|=3.126e-13 (tol=1e-06)  got=137.46 ref=137.46
+
+=== Test 5: known-L  n=256 ===
+  PASS  elapsed>=0 n=256
+  PASS  n=256  max|L-L_ref|=1.638e-14 (tol=1e-10)
+  PASS  n=256  ||A-LL^T||_max=3.553e-15 (tol=1e-08)
+  PASS  n=256  ||A-LL^T||_F/||A||_F=1.563e-16 (tol=1e-10)
+  PASS  n=256  max_sym=0.000e+00 (tol=1e-12)
+  PASS  n=256  all L[i,i]>0  (min=1.004e+00)
+  PASS  n=256  |logdet_diff|=3.126e-13 (tol=1e-06)  got=138.27 ref=138.27
+
+=== Test 5: known-L  n=257 ===
+  PASS  elapsed>=0 n=257
+  PASS  n=257  max|L-L_ref|=1.638e-14 (tol=1e-10)
+  PASS  n=257  ||A-LL^T||_max=3.553e-15 (tol=1e-08)
+  PASS  n=257  ||A-LL^T||_F/||A||_F=1.563e-16 (tol=1e-10)
+  PASS  n=257  max_sym=0.000e+00 (tol=1e-12)
+  PASS  n=257  all L[i,i]>0  (min=1.004e+00)
+  PASS  n=257  |logdet_diff|=3.126e-13 (tol=1e-06)  got=138.774 ref=138.774
+
+=== Test 6: stressed diagonal  n=32  diag 1..1e-12 ===
+  PASS  stressed n=32  max|L-L_ref|=0.000e+00 (tol=1e-10)
+  PASS  stressed n=32  ||A-LL^T||_max=0.000e+00 (tol=1e-08)
+  PASS  stressed n=32  ||A-LL^T||_F/||A||_F=0.000e+00 (tol=1e-10)
+  PASS  stressed n=32  max_sym=0.000e+00 (tol=1e-12)
+  PASS  stressed n=32  all L[i,i]>0  (min=1.000e-12)
+  PASS  stressed n=32  |logdet_diff|=0.000e+00 (tol=1e-06)  got=-884.193 ref=-884.193
+
+=== Test 6: stressed diagonal  n=96  diag 1..1e-12 ===
+  PASS  stressed n=96  max|L-L_ref|=0.000e+00 (tol=1e-10)
+  PASS  stressed n=96  ||A-LL^T||_max=0.000e+00 (tol=1e-08)
+  PASS  stressed n=96  ||A-LL^T||_F/||A||_F=0.000e+00 (tol=1e-10)
+  PASS  stressed n=96  max_sym=0.000e+00 (tol=1e-12)
+  PASS  stressed n=96  all L[i,i]>0  (min=1.000e-12)
+  PASS  stressed n=96  |logdet_diff|=0.000e+00 (tol=1e-06)  got=-2652.58 ref=-2652.58
+
+=== Test 7: corr()  n=50 ===
+  PASS  elapsed>=0 n=50
+  PASS  corr n=50  ||A-LL^T||_max=5.551e-16 (tol=1e-08)
+  PASS  corr n=50  ||A-LL^T||_F/||A||_F=1.522e-16 (tol=1e-10)
+  PASS  corr n=50  max_sym=0.000e+00 (tol=1e-12)
+  PASS  corr n=50  all L[i,i]>0  (min=1.322e-01)
+  PASS  corr n=50  |logdet_diff|=1.648e-11 (tol=1e-06)  got=-196.105 ref=-196.105
+
+=== Test 7: corr()  n=200 ===
+  PASS  elapsed>=0 n=200
+  PASS  corr n=200  ||A-LL^T||_max=7.772e-16 (tol=1e-08)
+  PASS  corr n=200  ||A-LL^T||_F/||A||_F=1.632e-16 (tol=1e-10)
+  PASS  corr n=200  max_sym=0.000e+00 (tol=1e-12)
+  PASS  corr n=200  all L[i,i]>0  (min=1.092e-01)
+  PASS  corr n=200  |logdet_diff|=4.593e-11 (tol=1e-06)  got=-877.103 ref=-877.103
+
+=== Test 7: corr()  n=500 ===
+  PASS  elapsed>=0 n=500
+  PASS  corr n=500  ||A-LL^T||_max=9.992e-16 (tol=1e-08)
+  PASS  corr n=500  ||A-LL^T||_F/||A||_F=1.632e-16 (tol=1e-10)
+  PASS  corr n=500  max_sym=0.000e+00 (tol=1e-12)
+  PASS  corr n=500  all L[i,i]>0  (min=1.041e-01)
+  INFO  corr n=500  logdet=-2251.671388 (no reference)
+
+=== Test 8: multi-thread  n=96 ===
+  PASS  n=96  nt=2 vs nt=1  max|diff|=0.000e+00 (tol=1e-10)
+  PASS  n=96 nt=2  ||A-LL^T||_max=3.553e-15 (tol=1e-08)
+  PASS  n=96 nt=2  ||A-LL^T||_F/||A||_F=2.251e-16 (tol=1e-10)
+  PASS  n=96 nt=2  max_sym=0.000e+00 (tol=1e-12)
+  PASS  n=96 nt=2  all L[i,i]>0  (min=1.004e+00)
+  INFO  n=96 nt=2  logdet=51.98967287 (no reference)
+  PASS  n=96  nt=4 vs nt=1  max|diff|=0.000e+00 (tol=1e-10)
+  PASS  n=96 nt=4  ||A-LL^T||_max=3.553e-15 (tol=1e-08)
+  PASS  n=96 nt=4  ||A-LL^T||_F/||A||_F=2.251e-16 (tol=1e-10)
+  PASS  n=96 nt=4  max_sym=0.000e+00 (tol=1e-12)
+  PASS  n=96 nt=4  all L[i,i]>0  (min=1.004e+00)
+  INFO  n=96 nt=4  logdet=51.98967287 (no reference)
+  PASS  n=96  nt=8 vs nt=1  max|diff|=0.000e+00 (tol=1e-10)
+  PASS  n=96 nt=8  ||A-LL^T||_max=3.553e-15 (tol=1e-08)
+  PASS  n=96 nt=8  ||A-LL^T||_F/||A||_F=2.251e-16 (tol=1e-10)
+  PASS  n=96 nt=8  max_sym=0.000e+00 (tol=1e-12)
+  PASS  n=96 nt=8  all L[i,i]>0  (min=1.004e+00)
+  INFO  n=96 nt=8  logdet=51.98967287 (no reference)
+  PASS  n=96  nt=76 vs nt=1  max|diff|=0.000e+00 (tol=1e-10)
+  PASS  n=96 nt=76  ||A-LL^T||_max=3.553e-15 (tol=1e-08)
+  PASS  n=96 nt=76  ||A-LL^T||_F/||A||_F=2.251e-16 (tol=1e-10)
+  PASS  n=96 nt=76  max_sym=0.000e+00 (tol=1e-12)
+  PASS  n=96 nt=76  all L[i,i]>0  (min=1.004e+00)
+  INFO  n=96 nt=76  logdet=51.98967287 (no reference)
+
+=== Test 8: multi-thread  n=200 ===
+  PASS  n=200  nt=2 vs nt=1  max|diff|=0.000e+00 (tol=1e-10)
+  PASS  n=200 nt=2  ||A-LL^T||_max=3.553e-15 (tol=1e-08)
+  PASS  n=200 nt=2  ||A-LL^T||_F/||A||_F=1.680e-16 (tol=1e-10)
+  PASS  n=200 nt=2  max_sym=0.000e+00 (tol=1e-12)
+  PASS  n=200 nt=2  all L[i,i]>0  (min=1.004e+00)
+  INFO  n=200 nt=2  logdet=108.1486632 (no reference)
+  PASS  n=200  nt=4 vs nt=1  max|diff|=0.000e+00 (tol=1e-10)
+  PASS  n=200 nt=4  ||A-LL^T||_max=3.553e-15 (tol=1e-08)
+  PASS  n=200 nt=4  ||A-LL^T||_F/||A||_F=1.680e-16 (tol=1e-10)
+  PASS  n=200 nt=4  max_sym=0.000e+00 (tol=1e-12)
+  PASS  n=200 nt=4  all L[i,i]>0  (min=1.004e+00)
+  INFO  n=200 nt=4  logdet=108.1486632 (no reference)
+  PASS  n=200  nt=8 vs nt=1  max|diff|=0.000e+00 (tol=1e-10)
+  PASS  n=200 nt=8  ||A-LL^T||_max=3.553e-15 (tol=1e-08)
+  PASS  n=200 nt=8  ||A-LL^T||_F/||A||_F=1.680e-16 (tol=1e-10)
+  PASS  n=200 nt=8  max_sym=0.000e+00 (tol=1e-12)
+  PASS  n=200 nt=8  all L[i,i]>0  (min=1.004e+00)
+  INFO  n=200 nt=8  logdet=108.1486632 (no reference)
+  PASS  n=200  nt=76 vs nt=1  max|diff|=0.000e+00 (tol=1e-10)
+  PASS  n=200 nt=76  ||A-LL^T||_max=3.553e-15 (tol=1e-08)
+  PASS  n=200 nt=76  ||A-LL^T||_F/||A||_F=1.680e-16 (tol=1e-10)
+  PASS  n=200 nt=76  max_sym=0.000e+00 (tol=1e-12)
+  PASS  n=200 nt=76  all L[i,i]>0  (min=1.004e+00)
+  INFO  n=200 nt=76  logdet=108.1486632 (no reference)
+
+=== Test 8: multi-thread  n=500 ===
+  PASS  n=500  nt=2 vs nt=1  max|diff|=0.000e+00 (tol=1e-10)
+  PASS  n=500 nt=2  ||A-LL^T||_max=1.421e-14 (tol=1e-08)
+  PASS  n=500 nt=2  ||A-LL^T||_F/||A||_F=1.586e-16 (tol=1e-10)
+  PASS  n=500 nt=2  max_sym=0.000e+00 (tol=1e-12)
+  PASS  n=500 nt=2  all L[i,i]>0  (min=1.000e+00)
+  INFO  n=500 nt=2  logdet=269.319591 (no reference)
+  PASS  n=500  nt=4 vs nt=1  max|diff|=0.000e+00 (tol=1e-10)
+  PASS  n=500 nt=4  ||A-LL^T||_max=1.421e-14 (tol=1e-08)
+  PASS  n=500 nt=4  ||A-LL^T||_F/||A||_F=1.586e-16 (tol=1e-10)
+  PASS  n=500 nt=4  max_sym=0.000e+00 (tol=1e-12)
+  PASS  n=500 nt=4  all L[i,i]>0  (min=1.000e+00)
+  INFO  n=500 nt=4  logdet=269.319591 (no reference)
+  PASS  n=500  nt=8 vs nt=1  max|diff|=0.000e+00 (tol=1e-10)
+  PASS  n=500 nt=8  ||A-LL^T||_max=1.421e-14 (tol=1e-08)
+  PASS  n=500 nt=8  ||A-LL^T||_F/||A||_F=1.586e-16 (tol=1e-10)
+  PASS  n=500 nt=8  max_sym=0.000e+00 (tol=1e-12)
+  PASS  n=500 nt=8  all L[i,i]>0  (min=1.000e+00)
+  INFO  n=500 nt=8  logdet=269.319591 (no reference)
+  PASS  n=500  nt=76 vs nt=1  max|diff|=0.000e+00 (tol=1e-10)
+  PASS  n=500 nt=76  ||A-LL^T||_max=1.421e-14 (tol=1e-08)
+  PASS  n=500 nt=76  ||A-LL^T||_F/||A||_F=1.586e-16 (tol=1e-10)
+  PASS  n=500 nt=76  max_sym=0.000e+00 (tol=1e-12)
+  PASS  n=500 nt=76  all L[i,i]>0  (min=1.000e+00)
+  INFO  n=500 nt=76  logdet=269.319591 (no reference)
+
+--- 182 / 182 tests passed ---
+
+================================================================
+  build=perf  OMP_NUM_THREADS=76
+================================================================
+mphil_dis_cholesky: n=0 out of range [1, 100000]
+mphil_dis_cholesky: n=100001 out of range [1, 100000]
+=== mphil_dis_cholesky correctness tests ===
+    NB=96
+    TOL_EXACT=1e-10  TOL_KNOWN_L=1e-10  TOL_RECON=1e-08  TOL_REL_RECON=1e-10  TOL_SYM=1e-12  TOL_LOGDET=1e-06
+
+
+=== Test 1: 2x2 spec example ===
+  PASS  L[0,0]=2
+  PASS  L[1,0]=1
+  PASS  L[1,1]=5
+  PASS  L^T[0,1]=1
+  PASS  logdet=log(100)
+  PASS  elapsed>=0
+
+=== Test 2: 3x3 hand-computed ===
+  PASS  L[0,0]=2
+  PASS  L[1,0]=1
+  PASS  L[1,1]=sqrt2
+  PASS  L[2,0]=1
+  PASS  L[2,1]=0
+  PASS  L[2,2]=sqrt2
+  PASS  L^T[0,1]=1
+  PASS  L^T[0,2]=1
+  PASS  L^T[1,2]=0
+  PASS  logdet=log(16)
+  PASS  elapsed>=0
+
+=== Test 3: n=1 edge case ===
+  PASS  c[0]=3
+  PASS  elapsed>=0
+
+=== Test 4: bounds guard ===
+  PASS  n=0 → -1.0
+  PASS  n=100001 → -1.0
+  PASS  n=1 → >=0
+  PASS  n=1: c[0]=2
+
+=== Test 5: known-L  n=5 ===
+  PASS  elapsed>=0 n=5
+  PASS  n=5  max|L-L_ref|=2.220e-16 (tol=1e-10)
+  PASS  n=5  ||A-LL^T||_max=4.441e-16 (tol=1e-08)
+  PASS  n=5  ||A-LL^T||_F/||A||_F=9.446e-17 (tol=1e-10)
+  PASS  n=5  max_sym=0.000e+00 (tol=1e-12)
+  PASS  n=5  all L[i,i]>0  (min=1.071e+00)
+  PASS  n=5  |logdet_diff|=4.441e-16 (tol=1e-06)  got=3.01345 ref=3.01345
+
+=== Test 5: known-L  n=95 ===
+  PASS  elapsed>=0 n=95
+  PASS  n=95  max|L-L_ref|=5.412e-15 (tol=1e-10)
+  PASS  n=95  ||A-LL^T||_max=3.553e-15 (tol=1e-08)
+  PASS  n=95  ||A-LL^T||_F/||A||_F=2.213e-16 (tol=1e-10)
+  PASS  n=95  max_sym=0.000e+00 (tol=1e-12)
+  PASS  n=95  all L[i,i]>0  (min=1.004e+00)
+  PASS  n=95  |logdet_diff|=2.842e-14 (tol=1e-06)  got=51.1897 ref=51.1897
+
+=== Test 5: known-L  n=96 ===
+  PASS  elapsed>=0 n=96
+  PASS  n=96  max|L-L_ref|=5.412e-15 (tol=1e-10)
+  PASS  n=96  ||A-LL^T||_max=3.553e-15 (tol=1e-08)
+  PASS  n=96  ||A-LL^T||_F/||A||_F=2.251e-16 (tol=1e-10)
+  PASS  n=96  max_sym=0.000e+00 (tol=1e-12)
+  PASS  n=96  all L[i,i]>0  (min=1.004e+00)
+  PASS  n=96  |logdet_diff|=2.842e-14 (tol=1e-06)  got=51.9897 ref=51.9897
+
+=== Test 5: known-L  n=97 ===
+  PASS  elapsed>=0 n=97
+  PASS  n=97  max|L-L_ref|=5.412e-15 (tol=1e-10)
+  PASS  n=97  ||A-LL^T||_max=3.553e-15 (tol=1e-08)
+  PASS  n=97  ||A-LL^T||_F/||A||_F=2.245e-16 (tol=1e-10)
+  PASS  n=97  max_sym=0.000e+00 (tol=1e-12)
+  PASS  n=97  all L[i,i]>0  (min=1.004e+00)
+  PASS  n=97  |logdet_diff|=2.842e-14 (tol=1e-06)  got=52.3372 ref=52.3372
+
+=== Test 5: known-L  n=191 ===
+  PASS  elapsed>=0 n=191
+  PASS  n=191  max|L-L_ref|=1.432e-14 (tol=1e-10)
+  PASS  n=191  ||A-LL^T||_max=3.553e-15 (tol=1e-08)
+  PASS  n=191  ||A-LL^T||_F/||A||_F=1.705e-16 (tol=1e-10)
+  PASS  n=191  max_sym=0.000e+00 (tol=1e-12)
+  PASS  n=191  all L[i,i]>0  (min=1.004e+00)
+  PASS  n=191  |logdet_diff|=1.990e-13 (tol=1e-06)  got=103.242 ref=103.242
+
+=== Test 5: known-L  n=192 ===
+  PASS  elapsed>=0 n=192
+  PASS  n=192  max|L-L_ref|=1.432e-14 (tol=1e-10)
+  PASS  n=192  ||A-LL^T||_max=3.553e-15 (tol=1e-08)
+  PASS  n=192  ||A-LL^T||_F/||A||_F=1.699e-16 (tol=1e-10)
+  PASS  n=192  max_sym=0.000e+00 (tol=1e-12)
+  PASS  n=192  all L[i,i]>0  (min=1.004e+00)
+  PASS  n=192  |logdet_diff|=1.990e-13 (tol=1e-06)  got=103.569 ref=103.569
+
+=== Test 5: known-L  n=193 ===
+  PASS  elapsed>=0 n=193
+  PASS  n=193  max|L-L_ref|=1.432e-14 (tol=1e-10)
+  PASS  n=193  ||A-LL^T||_max=3.553e-15 (tol=1e-08)
+  PASS  n=193  ||A-LL^T||_F/||A||_F=1.694e-16 (tol=1e-10)
+  PASS  n=193  max_sym=0.000e+00 (tol=1e-12)
+  PASS  n=193  all L[i,i]>0  (min=1.004e+00)
+  PASS  n=193  |logdet_diff|=1.990e-13 (tol=1e-06)  got=104.365 ref=104.365
+
+=== Test 5: known-L  n=255 ===
+  PASS  elapsed>=0 n=255
+  PASS  n=255  max|L-L_ref|=1.638e-14 (tol=1e-10)
+  PASS  n=255  ||A-LL^T||_max=3.553e-15 (tol=1e-08)
+  PASS  n=255  ||A-LL^T||_F/||A||_F=1.569e-16 (tol=1e-10)
+  PASS  n=255  max_sym=0.000e+00 (tol=1e-12)
+  PASS  n=255  all L[i,i]>0  (min=1.004e+00)
+  PASS  n=255  |logdet_diff|=3.126e-13 (tol=1e-06)  got=137.46 ref=137.46
+
+=== Test 5: known-L  n=256 ===
+  PASS  elapsed>=0 n=256
+  PASS  n=256  max|L-L_ref|=1.638e-14 (tol=1e-10)
+  PASS  n=256  ||A-LL^T||_max=3.553e-15 (tol=1e-08)
+  PASS  n=256  ||A-LL^T||_F/||A||_F=1.563e-16 (tol=1e-10)
+  PASS  n=256  max_sym=0.000e+00 (tol=1e-12)
+  PASS  n=256  all L[i,i]>0  (min=1.004e+00)
+  PASS  n=256  |logdet_diff|=3.126e-13 (tol=1e-06)  got=138.27 ref=138.27
+
+=== Test 5: known-L  n=257 ===
+  PASS  elapsed>=0 n=257
+  PASS  n=257  max|L-L_ref|=1.638e-14 (tol=1e-10)
+  PASS  n=257  ||A-LL^T||_max=3.553e-15 (tol=1e-08)
+  PASS  n=257  ||A-LL^T||_F/||A||_F=1.563e-16 (tol=1e-10)
+  PASS  n=257  max_sym=0.000e+00 (tol=1e-12)
+  PASS  n=257  all L[i,i]>0  (min=1.004e+00)
+  PASS  n=257  |logdet_diff|=3.126e-13 (tol=1e-06)  got=138.774 ref=138.774
+
+=== Test 6: stressed diagonal  n=32  diag 1..1e-12 ===
+  PASS  stressed n=32  max|L-L_ref|=0.000e+00 (tol=1e-10)
+  PASS  stressed n=32  ||A-LL^T||_max=0.000e+00 (tol=1e-08)
+  PASS  stressed n=32  ||A-LL^T||_F/||A||_F=0.000e+00 (tol=1e-10)
+  PASS  stressed n=32  max_sym=0.000e+00 (tol=1e-12)
+  PASS  stressed n=32  all L[i,i]>0  (min=1.000e-12)
+  PASS  stressed n=32  |logdet_diff|=0.000e+00 (tol=1e-06)  got=-884.193 ref=-884.193
+
+=== Test 6: stressed diagonal  n=96  diag 1..1e-12 ===
+  PASS  stressed n=96  max|L-L_ref|=0.000e+00 (tol=1e-10)
+  PASS  stressed n=96  ||A-LL^T||_max=0.000e+00 (tol=1e-08)
+  PASS  stressed n=96  ||A-LL^T||_F/||A||_F=0.000e+00 (tol=1e-10)
+  PASS  stressed n=96  max_sym=0.000e+00 (tol=1e-12)
+  PASS  stressed n=96  all L[i,i]>0  (min=1.000e-12)
+  PASS  stressed n=96  |logdet_diff|=0.000e+00 (tol=1e-06)  got=-2652.58 ref=-2652.58
+
+=== Test 7: corr()  n=50 ===
+  PASS  elapsed>=0 n=50
+  PASS  corr n=50  ||A-LL^T||_max=5.551e-16 (tol=1e-08)
+  PASS  corr n=50  ||A-LL^T||_F/||A||_F=1.522e-16 (tol=1e-10)
+  PASS  corr n=50  max_sym=0.000e+00 (tol=1e-12)
+  PASS  corr n=50  all L[i,i]>0  (min=1.322e-01)
+  PASS  corr n=50  |logdet_diff|=1.648e-11 (tol=1e-06)  got=-196.105 ref=-196.105
+
+=== Test 7: corr()  n=200 ===
+  PASS  elapsed>=0 n=200
+  PASS  corr n=200  ||A-LL^T||_max=7.772e-16 (tol=1e-08)
+  PASS  corr n=200  ||A-LL^T||_F/||A||_F=1.632e-16 (tol=1e-10)
+  PASS  corr n=200  max_sym=0.000e+00 (tol=1e-12)
+  PASS  corr n=200  all L[i,i]>0  (min=1.092e-01)
+  PASS  corr n=200  |logdet_diff|=4.593e-11 (tol=1e-06)  got=-877.103 ref=-877.103
+
+=== Test 7: corr()  n=500 ===
+  PASS  elapsed>=0 n=500
+  PASS  corr n=500  ||A-LL^T||_max=9.992e-16 (tol=1e-08)
+  PASS  corr n=500  ||A-LL^T||_F/||A||_F=1.632e-16 (tol=1e-10)
+  PASS  corr n=500  max_sym=0.000e+00 (tol=1e-12)
+  PASS  corr n=500  all L[i,i]>0  (min=1.041e-01)
+  INFO  corr n=500  logdet=-2251.671388 (no reference)
+
+=== Test 8: multi-thread  n=96 ===
+  PASS  n=96  nt=2 vs nt=1  max|diff|=0.000e+00 (tol=1e-10)
+  PASS  n=96 nt=2  ||A-LL^T||_max=3.553e-15 (tol=1e-08)
+  PASS  n=96 nt=2  ||A-LL^T||_F/||A||_F=2.251e-16 (tol=1e-10)
+  PASS  n=96 nt=2  max_sym=0.000e+00 (tol=1e-12)
+  PASS  n=96 nt=2  all L[i,i]>0  (min=1.004e+00)
+  INFO  n=96 nt=2  logdet=51.98967287 (no reference)
+  PASS  n=96  nt=4 vs nt=1  max|diff|=0.000e+00 (tol=1e-10)
+  PASS  n=96 nt=4  ||A-LL^T||_max=3.553e-15 (tol=1e-08)
+  PASS  n=96 nt=4  ||A-LL^T||_F/||A||_F=2.251e-16 (tol=1e-10)
+  PASS  n=96 nt=4  max_sym=0.000e+00 (tol=1e-12)
+  PASS  n=96 nt=4  all L[i,i]>0  (min=1.004e+00)
+  INFO  n=96 nt=4  logdet=51.98967287 (no reference)
+  PASS  n=96  nt=8 vs nt=1  max|diff|=0.000e+00 (tol=1e-10)
+  PASS  n=96 nt=8  ||A-LL^T||_max=3.553e-15 (tol=1e-08)
+  PASS  n=96 nt=8  ||A-LL^T||_F/||A||_F=2.251e-16 (tol=1e-10)
+  PASS  n=96 nt=8  max_sym=0.000e+00 (tol=1e-12)
+  PASS  n=96 nt=8  all L[i,i]>0  (min=1.004e+00)
+  INFO  n=96 nt=8  logdet=51.98967287 (no reference)
+  PASS  n=96  nt=76 vs nt=1  max|diff|=0.000e+00 (tol=1e-10)
+  PASS  n=96 nt=76  ||A-LL^T||_max=3.553e-15 (tol=1e-08)
+  PASS  n=96 nt=76  ||A-LL^T||_F/||A||_F=2.251e-16 (tol=1e-10)
+  PASS  n=96 nt=76  max_sym=0.000e+00 (tol=1e-12)
+  PASS  n=96 nt=76  all L[i,i]>0  (min=1.004e+00)
+  INFO  n=96 nt=76  logdet=51.98967287 (no reference)
+
+=== Test 8: multi-thread  n=200 ===
+  PASS  n=200  nt=2 vs nt=1  max|diff|=0.000e+00 (tol=1e-10)
+  PASS  n=200 nt=2  ||A-LL^T||_max=3.553e-15 (tol=1e-08)
+  PASS  n=200 nt=2  ||A-LL^T||_F/||A||_F=1.680e-16 (tol=1e-10)
+  PASS  n=200 nt=2  max_sym=0.000e+00 (tol=1e-12)
+  PASS  n=200 nt=2  all L[i,i]>0  (min=1.004e+00)
+  INFO  n=200 nt=2  logdet=108.1486632 (no reference)
+  PASS  n=200  nt=4 vs nt=1  max|diff|=0.000e+00 (tol=1e-10)
+  PASS  n=200 nt=4  ||A-LL^T||_max=3.553e-15 (tol=1e-08)
+  PASS  n=200 nt=4  ||A-LL^T||_F/||A||_F=1.680e-16 (tol=1e-10)
+  PASS  n=200 nt=4  max_sym=0.000e+00 (tol=1e-12)
+  PASS  n=200 nt=4  all L[i,i]>0  (min=1.004e+00)
+  INFO  n=200 nt=4  logdet=108.1486632 (no reference)
+  PASS  n=200  nt=8 vs nt=1  max|diff|=0.000e+00 (tol=1e-10)
+  PASS  n=200 nt=8  ||A-LL^T||_max=3.553e-15 (tol=1e-08)
+  PASS  n=200 nt=8  ||A-LL^T||_F/||A||_F=1.680e-16 (tol=1e-10)
+  PASS  n=200 nt=8  max_sym=0.000e+00 (tol=1e-12)
+  PASS  n=200 nt=8  all L[i,i]>0  (min=1.004e+00)
+  INFO  n=200 nt=8  logdet=108.1486632 (no reference)
+  PASS  n=200  nt=76 vs nt=1  max|diff|=0.000e+00 (tol=1e-10)
+  PASS  n=200 nt=76  ||A-LL^T||_max=3.553e-15 (tol=1e-08)
+  PASS  n=200 nt=76  ||A-LL^T||_F/||A||_F=1.680e-16 (tol=1e-10)
+  PASS  n=200 nt=76  max_sym=0.000e+00 (tol=1e-12)
+  PASS  n=200 nt=76  all L[i,i]>0  (min=1.004e+00)
+  INFO  n=200 nt=76  logdet=108.1486632 (no reference)
+
+=== Test 8: multi-thread  n=500 ===
+  PASS  n=500  nt=2 vs nt=1  max|diff|=0.000e+00 (tol=1e-10)
+  PASS  n=500 nt=2  ||A-LL^T||_max=1.421e-14 (tol=1e-08)
+  PASS  n=500 nt=2  ||A-LL^T||_F/||A||_F=1.586e-16 (tol=1e-10)
+  PASS  n=500 nt=2  max_sym=0.000e+00 (tol=1e-12)
+  PASS  n=500 nt=2  all L[i,i]>0  (min=1.000e+00)
+  INFO  n=500 nt=2  logdet=269.319591 (no reference)
+  PASS  n=500  nt=4 vs nt=1  max|diff|=0.000e+00 (tol=1e-10)
+  PASS  n=500 nt=4  ||A-LL^T||_max=1.421e-14 (tol=1e-08)
+  PASS  n=500 nt=4  ||A-LL^T||_F/||A||_F=1.586e-16 (tol=1e-10)
+  PASS  n=500 nt=4  max_sym=0.000e+00 (tol=1e-12)
+  PASS  n=500 nt=4  all L[i,i]>0  (min=1.000e+00)
+  INFO  n=500 nt=4  logdet=269.319591 (no reference)
+  PASS  n=500  nt=8 vs nt=1  max|diff|=0.000e+00 (tol=1e-10)
+  PASS  n=500 nt=8  ||A-LL^T||_max=1.421e-14 (tol=1e-08)
+  PASS  n=500 nt=8  ||A-LL^T||_F/||A||_F=1.586e-16 (tol=1e-10)
+  PASS  n=500 nt=8  max_sym=0.000e+00 (tol=1e-12)
+  PASS  n=500 nt=8  all L[i,i]>0  (min=1.000e+00)
+  INFO  n=500 nt=8  logdet=269.319591 (no reference)
+  PASS  n=500  nt=76 vs nt=1  max|diff|=0.000e+00 (tol=1e-10)
+  PASS  n=500 nt=76  ||A-LL^T||_max=1.421e-14 (tol=1e-08)
+  PASS  n=500 nt=76  ||A-LL^T||_F/||A||_F=1.586e-16 (tol=1e-10)
+  PASS  n=500 nt=76  max_sym=0.000e+00 (tol=1e-12)
+  PASS  n=500 nt=76  all L[i,i]>0  (min=1.000e+00)
+  INFO  n=500 nt=76  logdet=269.319591 (no reference)
+
+--- 182 / 182 tests passed ---
+
+================================================================
+PASS/FAIL summary per run
+================================================================
+
+RESULT: all tests passed

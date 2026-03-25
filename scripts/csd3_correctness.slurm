@@ -7,6 +7,7 @@
 #SBATCH --cpus-per-task=76
 #SBATCH --exclusive
 #SBATCH --time=00:20:00
+#SBATCH --qos=INTR
 #SBATCH --output=correctness_%j.out
 #SBATCH --error=correctness_%j.err
 #

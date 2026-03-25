@@ -92,37 +92,56 @@ The routine rejects $n < 1$ or $n > 100000$ and returns $-1.0$.
 
 \subsection{Correctness verification}
 
-Correctness is assessed through four complementary checks implemented in
-\texttt{test/test\_correctness.c}:
+Correctness was validated by exact small examples, reconstruction residuals,
+output-layout checks, and agreement across thread counts; $\log|C|$ was used
+only as a secondary cross-check.
+The test suite is implemented in \texttt{test/test\_correctness.c}.
 
 \begin{enumerate}
-  \item \textbf{Reconstruction.} For each test matrix $C$, after factorisation
-    the lower triangle $L$ is used to recompute $LL^T$ and the max-norm error
-    $\max_{i,j}|(LL^T)_{ij} - C_{ij}|$ is required to be below $10^{-8}$.
-    Test sizes include small hand-verified cases ($n \in \{2,3,5,50,200\}$)
-    and block-boundary sizes around $\mathrm{NB}=96$: $n \in \{95, 96, 97, 192, 193\}$.
+  \item \textbf{Known-$L$ reconstruction.}
+    For each test matrix $C = L_{\mathrm{ref}}L_{\mathrm{ref}}^T$, the returned
+    lower triangle $L$ is compared directly to $L_{\mathrm{ref}}$ (tolerance
+    $10^{-10}$) and the max-norm residual $\max_{i,j}|(LL^T)_{ij} - C_{ij}|$
+    is required to be below $10^{-8}$.
+    The relative Frobenius residual $\|A - LL^T\|_F / \|A\|_F$ is also computed
+    and reported.
+    Test sizes span $n \in \{5, 95, 96, 97, 191, 192, 193, 255, 256, 257\}$,
+    explicitly bracketing the first three panel boundaries at $\mathrm{NB}=96$.
+    These boundary sizes are included because blocked Cholesky implementations
+    commonly fail at exact multiples of NB (full panel) and at the one-column
+    remainder, where index arithmetic for the final panel differs from the general
+    case.
+    A numerically stressed case ($L_{\mathrm{ref}}$ diagonal, entries
+    $10^0\ldots10^{-12}$, $n \in \{32,96\}$) tests behaviour under extreme
+    pivot-magnitude variation.
+    Coursework corr() matrices at $n \in \{50, 200, 500\}$ are also included.
 
   \item \textbf{Output layout symmetry.} The upper triangle must equal the
     transposed lower triangle ($c[i \cdot n + j] = c[j \cdot n + i]$ for all
-    $i < j$), verified to $10^{-10}$.
+    $i < j$), verified to absolute tolerance $10^{-12}$.
 
   \item \textbf{Boundary-size rejection.} $n = 0$ and $n = 100001$ must return
     $-1.0$; $n = 1$ must return a non-negative time and produce
     $c[0] = \sqrt{c_{\text{input}}}$.
 
-  \item \textbf{Multi-thread agreement.} For $n \in \{200, 500\}$ the factorised
-    $L$ computed with 1, 2, 4, and 8 threads must agree element-wise to $10^{-8}$,
-    verifying absence of data races and schedule-dependent nondeterminism.
+  \item \textbf{Multi-thread agreement.}
+    For $n \in \{96, 200, 500\}$ the factorised $L$ is computed at
+    $T \in \{1, 2, 4, 8, 76\}$ threads; each result is compared element-wise
+    against the 1-thread reference to absolute tolerance $10^{-10}$.
+    Agreement at 76~threads (full-node occupancy) verifies that no data race or
+    schedule-sensitive nondeterminism affects the final factor.
+    All metrics listed above are also reported for each thread count.
 \end{enumerate}
 
 $\log|C| = 2\sum_p \log L_{pp}$ is checked as a secondary cross-check against
-NumPy reference values ($n \in \{5, 50, 200\}$, tolerance $10^{-6}$); it
-is not the primary correctness criterion because it conflates all diagonal errors
-into a single scalar.
+NumPy reference values for corr() at $n \in \{50, 200\}$, using absolute
+tolerance $10^{-6}$; it is not the primary correctness criterion because it
+conflates all diagonal errors into a single scalar and does not detect wrong
+off-diagonals, stale upper-triangle data, or some TRSM/SYRK errors.
 The strict build (\texttt{make test-strict VERSION=v5\_openmp\_blocked NB=96})
-links against a library compiled without \texttt{-ffast-math} to avoid
-floating-point reassociation masking errors; all tests also pass with
-\texttt{-ffast-math} for consistency with the performance build.
+compiles the library without \texttt{-ffast-math} to prevent floating-point
+reassociation from masking errors; all tests also pass with \texttt{-ffast-math}
+confirming consistency with the performance build.
 
 % ======================================================================
 \section{Optimisation Strategy}
@@ -247,20 +266,20 @@ ablation runs in this report.
 
   \item \textbf{OPT-3: $j{\times}4$ SYRK unrolling (Phase~3).}
     Processing four output columns simultaneously with four independent
-    accumulators \texttt{d0..d3} breaks the FMA dependency chain.
+    accumulators \texttt{d0..d3} is designed to shorten the FMA dependency chain.
     The icelake core has two AVX-512 FMA units (8-wide, 2 FMAs/cycle); a single
-    reduction accumulator creates a dependency chain that may underutilise them.
+    reduction accumulator may create a dependency bottleneck that underutilises them.
     With four independent accumulators, \texttt{\#pragma~omp~simd~reduction(+:d0,d1,d2,d3)}
-    gives the compiler the opportunity to improve SIMD and instruction-level
-    parallelism.
+    is intended to give the compiler more instruction-level parallelism to exploit.
 
   \item \textbf{OPT-4: \texttt{schedule(static,1)} (Phase~3).}
-    Round-robin row assignment gives each thread an interleaved mix of heavy
-    (large~$i$, many $j$-values) and light rows, giving better load balance
-    than a contiguous assignment for the linearly-increasing triangular workload.
-    This scheduling change is introduced together with OPT-1--3, so its effect
-    is not isolated separately; it is included because it is consistent with the
-    triangular work profile of Phase~3.
+    Round-robin row assignment is designed to give each thread an interleaved
+    mix of heavy (large~$i$, many $j$-values) and light rows, intended to
+    improve load balance relative to a contiguous assignment for the
+    linearly-increasing triangular workload.
+    This scheduling change is introduced together with OPT-1--3; its individual
+    contribution is not isolated by ablation in this report, but it is motivated
+    by the triangular work profile of Phase~3.
 \end{enumerate}
 
 % ======================================================================
@@ -323,17 +342,21 @@ Tag & Commit & File at tag & Description \\
 \texttt{v0.1-baseline}   & \texttt{317a095} & \texttt{src/cholesky\_v1\_baseline.c} & Spec loop, \texttt{-O0} baseline \\
 \texttt{v0.2-serial-opt} & \texttt{dca7c6a} & \texttt{src/cholesky\_v2\_serial\_opt.c} & Loop interchange and serial \texttt{-O3} tuning \\
 \texttt{v0.3-openmp-v1}  & \texttt{f6b5509} & \texttt{src/cholesky\_v3\_openmp.c} & First OpenMP version: persistent team + trailing-update \texttt{omp for} \\
-\texttt{v0.4-blocked}    & \texttt{de66c37} & \texttt{src/cholesky\_v5\_openmp\_blocked.c} & First blocked OpenMP prototype (NB=128, parallel SYRK only, upper triangle still scratch) \\
-\texttt{v0.5-tuned}      & \texttt{7e70e05} & \texttt{src/cholesky\_v5\_openmp\_blocked.c} & Source state at tag: corrected blocked kernel (lower-triangle fix, explicit lower$\rightarrow$upper copy, split parallel TRSM and SYRK phases); the tagged commit updated benchmark results --- the source corrections appear in preceding commits (see \texttt{git log v0.4-blocked..v0.5-tuned -- src/}) \\
-\texttt{v0.6-cache-opts} & \texttt{614adbf} & \texttt{src/cholesky\_v5\_openmp\_blocked.c} & Adds col-pack, private \texttt{l11}, $j{\times}4$ unroll, \texttt{schedule(static,1)} (file renamed from \texttt{v6} to \texttt{v5} in the current submission; see note below) \\
+\texttt{v0.4-blocked}    & \texttt{de66c37} & \texttt{src/cholesky\_v4\_openmp\_blocked.c}$^\dagger$ & First blocked OpenMP prototype (NB=128, parallel SYRK only, upper triangle still scratch) \\
+\texttt{v0.5-tuned}      & \texttt{7e70e05} & \texttt{src/cholesky\_v4\_openmp\_blocked.c}$^\dagger$ & Corrected blocked kernel: lower-triangle fix, explicit lower$\rightarrow$upper copy, split parallel TRSM and SYRK phases; source corrections precede the tag (see \texttt{git log v0.4-blocked..v0.5-tuned -- src/}) \\
+\texttt{v0.6-cache-opts} & \texttt{614adbf} & \texttt{src/cholesky\_v5\_openmp\_blocked.c}$^\ddagger$ & Adds col-pack, private \texttt{l11}, $j{\times}4$ unroll, \texttt{schedule(static,1)} \\
 \bottomrule
 \end{tabular}
 \end{center}
-The current submission keeps the blocked baseline as
-\texttt{src/cholesky\_v4\_openmp\_blocked.c}, which is a cleaned/commented
-equivalent of the historical \texttt{v0.5-tuned} stage, and the final
-cache-optimised kernel as \texttt{src/cholesky\_v5\_openmp\_blocked.c}, which is
-the current equivalent of the historical \texttt{v0.6-cache-opts} stage.
+$^\dagger$~At commits \texttt{de66c37} and \texttt{7e70e05} the file was developed
+under a different name; the submission normalises it to
+\texttt{src/cholesky\_v4\_openmp\_blocked.c}, a cleaned and commented
+equivalent of the \texttt{v0.5-tuned} content.
+$^\ddagger$~At commit \texttt{614adbf} the file was named
+\texttt{cholesky\_v6\_openmp\_blocked.c}; it is renamed to
+\texttt{src/cholesky\_v5\_openmp\_blocked.c} in the submission.
+Every filename listed in the table corresponds to a file that exists in the
+submitted repository.
 
 % ======================================================================
 \section{Results}

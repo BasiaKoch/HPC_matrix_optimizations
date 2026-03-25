@@ -1,0 +1,4 @@
+=== Building  VERSION=v5_openmp_blocked  NB=96 ===
+./test/test_correctness_strict
+./test/test_correctness_strict: ./test/test_correctness_strict: nie można uruchomić pliku binarnego
+make: *** [Makefile:94: test-strict] Błąd 126

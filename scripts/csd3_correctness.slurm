@@ -58,18 +58,25 @@ PERF_BIN="test/test_correctness"
 
 # ---- build ---------------------------------------------------------------
 echo "=== Building  VERSION=$VERSION  NB=$NB ===" | tee "$LOG"
+echo "  node: $(hostname)  arch: $(uname -m)  gcc: $(gcc --version | head -1)" | tee -a "$LOG"
 
-# strict binary (no -ffast-math)
-make test-strict VERSION="$VERSION" NB="$NB" 2>&1 | tee -a "$LOG"
+# Always start clean so login-node binaries (wrong arch or stale) are never reused.
+make clean VERSION="$VERSION" NB="$NB" 2>&1 | tee -a "$LOG"
+
+# strict binary (no -ffast-math) — compile and run separated so build errors
+# are clearly distinct from execution errors
+make "$STRICT_BIN" VERSION="$VERSION" NB="$NB" 2>&1 | tee -a "$LOG"
 if [ ! -f "$STRICT_BIN" ]; then
     echo "ERROR: strict build failed" | tee -a "$LOG"; exit 1
 fi
+echo "  strict binary: $(file $STRICT_BIN)" | tee -a "$LOG"
 
 # performance binary (-ffast-math, same flags as benchmarks)
-make test VERSION="$VERSION" NB="$NB" 2>&1 | tee -a "$LOG"
+make "$PERF_BIN" VERSION="$VERSION" NB="$NB" 2>&1 | tee -a "$LOG"
 if [ ! -f "$PERF_BIN" ]; then
     echo "ERROR: performance build failed" | tee -a "$LOG"; exit 1
 fi
+echo "  perf binary:   $(file $PERF_BIN)" | tee -a "$LOG"
 
 echo "" | tee -a "$LOG"
 

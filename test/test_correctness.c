@@ -374,7 +374,7 @@ static void test_stressed(int n)
 static const struct { int n; double logdet_ref; } CORR_LOGDET[] = {
     {  50, -196.1047097521 },
     { 200, -877.1028093966 },
-    /* n=500: no precomputed reference; INFO line printed instead */
+    { 500, -2251.6713881199 },  /* numpy.linalg.cholesky reference; matches CSD3 runs to 1e-7 */
 };
 static const int N_CORR = (int)(sizeof(CORR_LOGDET)/sizeof(CORR_LOGDET[0]));
 

@@ -11,7 +11,11 @@
 #define MAX_N 100000
 
 /*
- * v4_openmp_blocked: panel-blocked lower-triangular Cholesky with OpenMP.
+ * v4_openmp_blocked: first blocked OpenMP version.
+ *
+ * Replaces the flat column-by-column OpenMP structure from v3 with a
+ * panel-blocked algorithm to reduce synchronization frequency and improve
+ * locality in the trailing update.
  *
  * Output layout:
  * lower triangle (i >= j): L[i,j]
@@ -47,8 +51,8 @@ double mphil_dis_cholesky(double *c, int n)
             int kend = (k + BLOCK_NB < n) ? (k + BLOCK_NB) : n;
 
             /* Phase 1: factor the diagonal block serially.
-             * omp single: One thread factors the block while others wait at the 
-             * implicit barrier. This operates only on the lower triangle. */
+            * omp single: one thread computes the panel factor L11 while the others
+            * wait at the implicit barrier. This phase updates only the lower triangle. */
             #pragma omp single
             {
                 for (int p = k; p < kend; p++) {
@@ -117,8 +121,7 @@ double mphil_dis_cholesky(double *c, int n)
                     double *panel_j = &c[(size_t)j * n + k];
                     double dot = 0.0;
 
-                    /* AVX-512 vectorization of the stride-1 FMA dot product. 
-                     * reduction(+:dot) accumulates partial sums safely. */
+                    /* omp simd encourages vectorization of the stride-1 dot product. */
                     #pragma omp simd reduction(+:dot)
                     for (int p = 0; p < panel_width; p++) {
                         dot += panel_i[p] * panel_j[p];

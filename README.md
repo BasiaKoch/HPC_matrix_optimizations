@@ -1,68 +1,8 @@
-# Cholesky Coursework
+# cholesky
 
-This repository contains my MPhil DIS C2 High Performance Computing coursework.
-The project is an in-place Cholesky factorisation routine for dense symmetric
-positive-definite matrices on a single CSD3 Ice Lake node, written in C with
-OpenMP.
-
-I started from the baseline algorithm given in the brief, then improved it in
-stages:
-
-- `v1_baseline`: a direct implementation of the coursework loop at `-O0`
-- `v2_serial_opt`: serial optimisation by fixing row-major memory access and
-  hoisting loop-invariant values
-- `v3_openmp`: my first OpenMP version, parallelising the trailing update
-- `v4_openmp_blocked`: a blocked algorithm to reduce per-column
-  synchronisation
-- `v5_openmp_blocked`: the final version used for the main results, adding
-  packing, better cache use, four-way unrolling, and improved scheduling
-
-The tagged commits `v0.1-baseline` to `v0.5-tuned` track those stages.
-
-## What The Library Does
-
-The library exposes the coursework interface:
-
-```c
-#include "mphil_dis_cholesky.h"
-
-double mphil_dis_cholesky(double *c, int n);
-```
-
-The routine expects:
-
-- `c` to point to a 1D row-major `n x n` matrix of `double`
-- the matrix to be symmetric positive-definite
-- `1 <= n <= 100000`
-
-The routine works in place:
-
-- on entry, `c` contains the matrix `C`
-- on exit, the lower triangle contains `L`
-- on exit, the upper triangle contains `L^T`
-- the return value is the wall-clock factorisation time in seconds
-
-After the call, a log-determinant can be recovered as:
-
-```c
-logdet = 2.0 * sum(log(c[i*n + i]))
-```
-
-## What I Focused On
-
-My main goal was not just to get a correct Cholesky implementation, but to show
-an optimisation path that I could justify with measurements.
-
-The main ideas I explored were:
-
-- improving serial memory access before attempting parallelism
-- keeping the OpenMP thread team alive across the whole factorisation
-- moving from a flat column-by-column update to a blocked panel algorithm
-- reducing long-stride accesses with packing
-- improving the blocked update kernel with SIMD-friendly structure and better
-  scheduling
-
-For the main experiments, I used `v5_openmp_blocked` with `NB=96`.
+In-place Cholesky factorisation (`C = L Lᵀ`) optimised for multi-core CPUs,
+developed for the MPhil DIS C2 HPC coursework (CSD3 icelake, 76-core Intel
+nodes).
 
 ## Requirements
 
@@ -70,8 +10,7 @@ For the main experiments, I used `v5_openmp_blocked` with `NB=96`.
 - GNU Make
 - POSIX `clock_gettime` (standard on Linux/CSD3)
 
-On CSD3 I used:
-
+On CSD3:
 ```bash
 module purge
 module load gcc/11
@@ -80,56 +19,115 @@ module load gcc/11
 ## Build
 
 ```bash
-# Build the final benchmark version
+# Build the best (panel-blocked OpenMP + micro-opts) version — recommended for performance
 make bench VERSION=v5_openmp_blocked NB=96
 
-# Build and run the correctness tests
+# Build and run correctness tests
 make test VERSION=v5_openmp_blocked NB=96
 
 # Build the example program
 make example VERSION=v5_openmp_blocked NB=96
 
-# Build other stages if you want to compare them
-make bench VERSION=v1_baseline
-make bench VERSION=v2_serial_opt
+# Build any other version
 make bench VERSION=v3_openmp
-make bench VERSION=v4_openmp_blocked NB=96
+make bench VERSION=v1_baseline
 
-# Remove build artefacts
+# Remove all build artefacts
 make clean
 ```
 
-The Makefile compiles `src/cholesky_<VERSION>.c` into `lib/libcholesky.a` and
-links the test and example binaries against it.
+The build system compiles `src/cholesky_<VERSION>.c` into `lib/libcholesky.a`
+and links it with the test/example binaries.
 
-## Repository Layout
+## Available Versions
 
-- `src/`: implementation versions
-- `include/`: public header
-- `example/`: example program and example CSD3 submission script
-- `test/`: correctness test suite and benchmark driver
-- `scripts/`: CSD3 benchmark/correctness scripts and plotting helpers
-- `results/`: committed CSV results and correctness logs
-- `report/`: report source and submitted report files
+| Version | Description |
+|---------|-------------|
+| `v1_baseline` | Exact spec loop, `-O0`, no optimisation |
+| `v2_serial_opt` | Loop interchange, loop-invariant hoisting (`c_ip`), `-O3 -march=native -ffast-math` |
+| `v3_openmp` | First OpenMP parallel version: `omp for schedule(static)` |
+| `v4_openmp_blocked` | Panel-blocked OpenMP — baseline blocked version (tune with `NB=N`) |
+| `v5_openmp_blocked` | Panel-blocked OpenMP + 4 cache/SIMD opts: col-pack, L11 cache, j×4 unroll, static,1 schedule |
 
-## Example Usage
+**`v5_openmp_blocked` is the final, fully validated implementation** (git tag
+`v0.5-tuned`). Versions v1–v4 are retained as intermediate optimisation
+stages corresponding to the development tags in the report. Note that v1–v3
+use `int` arithmetic for array indexing and are not validated for n > ~46,000;
+`v5` uses `size_t` casts throughout and correctly handles all n ≤ 100,000.
 
-The example program in `example/example.c` builds the coursework `corr()`
-matrix, runs the factorisation, and prints elapsed time, log-determinant, and
-GFLOP/s.
+## Usage
 
-```bash
-make example VERSION=v5_openmp_blocked NB=96
-./example/example 4000
+```c
+#include "mphil_dis_cholesky.h"
+
+// c: n*n matrix in row-major order, modified in-place
+// Returns wall clock time in seconds, or -1.0 if n is out of range [1,100000]
+double t = mphil_dis_cholesky(c, n);
 ```
 
-On CSD3, the recommended full-node settings are:
+After the call:
+- Lower triangle `c[i*n+j]` for `i >= j` contains `L[i,j]`
+- Upper triangle `c[i*n+j]` for `i < j` contains `L^T[i,j] = L[j,i]`
+- `log|C| = 2 * Σ log(c[i*n+i])` for `i = 0..n-1`
+
+See `example/example.c` for a complete usage example.
+
+## Performance Guidance
+
+For best full-node performance use `v5_openmp_blocked` with the following
+environment variables (set automatically by the provided SLURM scripts):
 
 ```bash
-export OMP_NUM_THREADS=76
-export OMP_PROC_BIND=close
-export OMP_PLACES=cores
+export OMP_NUM_THREADS=76        # one thread per physical core
+export OMP_PROC_BIND=close       # bind threads to nearby cores
+export OMP_PLACES=cores          # one thread per core (no SMT)
 ./example/example 8000
+```
+
+The block sweep shows that the best `NB` is thread-dependent:
+`NB=96` is best at 1 and 76 threads, while `NB=256` is best at 8 and 32 threads.
+`NB=96` is therefore kept as the default because it is the best mean full-node
+choice for the main 76-thread runs. A panel row of 96 doubles occupies 768 B,
+and the packed NB×NB block is about 74 KB, fitting comfortably in the 1.25 MB
+L2 per core.
+
+Measured mean performance in the main scaling dataset on CSD3 icelake
+(76 threads, `v5_openmp_blocked`, NB=96):
+
+| n    | GFlop/s | Speedup vs 1 thread |
+|------|---------|---------------------|
+| 2000 | 238     | 23×                 |
+| 4000 | 205     | 28×                 |
+| 6000 | 186     | 28×                 |
+| 8000 | 183     | 29×                 |
+
+## Running Benchmarks on CSD3
+
+```bash
+# Serial comparison (v1, v2) — submits to icelake INTR queue
+sbatch scripts/csd3_serial.slurm
+
+# OpenMP strong scaling (v3_openmp vs v4_openmp_blocked vs v5_openmp_blocked, n=2000–8000, 1–76 threads)
+sbatch scripts/csd3_scaling.slurm
+
+# Panel-width sweep for blocked versions (default: one thread count; override THREAD_LIST to compare several)
+sbatch --export=ALL,VERSION=v5_openmp_blocked,THREAD_LIST="1 8 32 76" scripts/csd3_block_sweep.slurm
+
+# Results are written to results/csd3_serial.csv, results/csd3_scaling.csv,
+# and results/block_sweep.csv. Plot the block sweep with:
+# python3 scripts/plot_block_sweep.py
+# This also writes results/block_sweep_summary.csv and report/figures/fig8_block_sweep.pdf
+```
+
+Submit scripts from the project root directory (where the `Makefile` lives),
+not from inside `scripts/`.
+
+## Running the Example on CSD3
+
+```bash
+# Build first, then submit
+make example VERSION=v5_openmp_blocked NB=96
+sbatch example/submit_csd3.slurm
 ```
 
 ## Testing
@@ -140,73 +138,25 @@ make test-strict VERSION=v5_openmp_blocked NB=96
 sbatch scripts/csd3_correctness.slurm
 ```
 
-The test suite covers:
+`test/test_correctness.c` covers exact 2×2 and 3×3 examples, `n=1`, bounds
+checking, known-`L` reconstruction at block-boundary sizes
+`5, 95, 96, 97, 191, 192, 193, 255, 256, 257`, numerically stressed diagonal
+SPD cases (`n=32, 96`), coursework `corr()` reconstruction (`n=50, 200, 500`),
+external logdet cross-checks for `corr()` at `n=50` and `n=200`, and OpenMP
+thread-agreement checks (`2, 4, 8, 76` threads vs 1 thread).
 
-- exact 2x2 and 3x3 examples
-- `n=1` and out-of-range guard checks
-- known-`L` reconstruction cases near block boundaries
-- numerically stressed diagonal SPD cases
-- coursework `corr()` reconstruction tests
-- selected external log-determinant references for `corr()`
-- thread-agreement checks against a 1-thread reference
-
-I kept both a performance build and a strict build without `-ffast-math` so I
-could check that the fast build was not hiding correctness problems.
-
-## Running Benchmarks On CSD3
-
-```bash
-# Serial comparison (v1, v2)
-sbatch scripts/csd3_serial.slurm
-
-# Strong scaling study (v3, v4, v5)
-sbatch scripts/csd3_scaling.slurm
-
-# Block-size sweep
-sbatch --export=ALL,VERSION=v5_openmp_blocked,THREAD_LIST="1 8 32 76" \
-    scripts/csd3_block_sweep.slurm
-```
-
-These scripts write CSV files into `results/`. The plotting scripts then turn
-those CSVs into the figures used in the report.
-
-Run submission scripts from the project root, where the `Makefile` lives.
-
-## Performance Notes
-
-In my main scaling runs on CSD3 Ice Lake, the final version
-`v5_openmp_blocked` with `NB=96` reported:
-
-| n    | GFLOP/s at 76 threads | Speedup vs 1 thread |
-|------|------------------------|---------------------|
-| 2000 | 238                    | 23x                 |
-| 4000 | 205                    | 28x                 |
-| 6000 | 186                    | 28x                 |
-| 8000 | 183                    | 29x                 |
-
-The block sweep showed that the best block size depends on thread count:
-
-- `NB=96` was best in the committed sweep at 1 and 76 threads
-- `NB=256` was best at 8 and 32 threads
-
-I kept `NB=96` for the main scaling runs because those runs focused on the
-full-node case and `NB=96` performed well there.
-
-## Report
-
-The report files are in `report/`:
-
-- `report/report.pdf`
-- `report/report.txt`
-- `report/report.tex`
-
-The report explains the optimisation path, the OpenMP strategy, the tagged
-development stages, and the performance results used to support the final
-implementation.
+`make test-strict` runs the same suite without `-ffast-math`. The SLURM script
+`scripts/csd3_correctness.slurm` runs both strict and performance builds across
+the full thread-count set on CSD3 and records the results in `results/`.
 
 ## AI Usage
 
-I used AI tools during development as coding assistants. They were most useful
-for drafting comments, checking ideas for tests, and helping me debug some
-correctness and performance issues. I reviewed and adapted those suggestions,
-and I take responsibility for the final code, experiments, and report.
+AI tools were used during development as coding assistants. Because the work
+was iterated between the local machine and CSD3/HPC runs, changes were
+committed frequently; some of these development iterations were assisted by
+Claude Code. ChatGPT was also used to help draft code comments, assist with
+parts of the test suite, and suggest debugging steps when investigating
+correctness or performance issues. All generated suggestions were reviewed,
+adapted, and validated before inclusion, and I remain responsible for the
+final code, tests, experiments, and report.
+

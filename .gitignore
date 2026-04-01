@@ -8,10 +8,18 @@ test/benchmark
 # SLURM job output files
 *.out
 *.err
+*.log
 scripts/results/
 
 # Debug symbol directories (macOS)
 **/*.dSYM/
+
+# Python cache files
+__pycache__/
+*.pyc
+
+# Local duplicate working copy
+HPC_matrix_optimizations/
 
 # macOS
 .DS_Store

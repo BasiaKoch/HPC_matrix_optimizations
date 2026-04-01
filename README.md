@@ -50,7 +50,7 @@ and links it with the test/example binaries.
 | `v5_openmp_blocked` | Panel-blocked OpenMP + 4 cache/SIMD opts: col-pack, L11 cache, j×4 unroll, static,1 schedule |
 
 **`v5_openmp_blocked` is the final, fully validated implementation** (git tag
-`v0.6-cache-opts`). Versions v1–v4 are retained as intermediate optimisation
+`v0.5-tuned`). Versions v1–v4 are retained as intermediate optimisation
 stages corresponding to the development tags in the report. Note that v1–v3
 use `int` arithmetic for array indexing and are not validated for n > ~46,000;
 `v5` uses `size_t` casts throughout and correctly handles all n ≤ 100,000.

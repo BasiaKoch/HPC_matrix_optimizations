@@ -148,3 +148,14 @@ thread-agreement checks (`2, 4, 8, 76` threads vs 1 thread).
 `make test-strict` runs the same suite without `-ffast-math`. The SLURM script
 `scripts/csd3_correctness.slurm` runs both strict and performance builds across
 the full thread-count set on CSD3 and records the results in `results/`.
+
+## AI Usage
+
+AI tools were used during development as coding assistants. Because the work
+was iterated between the local machine and CSD3/HPC runs, changes were
+committed frequently; some of these development iterations were assisted by
+Claude Code. ChatGPT was also used to help draft code comments, assist with
+parts of the test suite, and suggest debugging steps when investigating
+correctness or performance issues. All generated suggestions were reviewed,
+adapted, and validated before inclusion, and I remain responsible for the
+final code, tests, experiments, and report.

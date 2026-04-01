@@ -6,12 +6,33 @@
 \usepackage{amsmath}
 \usepackage{graphicx}
 \usepackage{booktabs}
+\usepackage{float}
 \usepackage{hyperref}
+\usepackage{listings}
 \usepackage{microtype}
+\usepackage{needspace}
 \usepackage{subcaption}
 \usepackage{tabularx}
 
 \hypersetup{colorlinks=true, linkcolor=blue, citecolor=blue, urlcolor=blue}
+
+\lstdefinestyle{code}{
+  language=C,
+  basicstyle=\ttfamily\footnotesize,
+  columns=fullflexible,
+  keepspaces=true,
+  showstringspaces=false,
+  frame=single,
+  framerule=0.3pt,
+  breaklines=true,
+  xleftmargin=0.6em,
+  framexleftmargin=0.6em,
+  aboveskip=0.8em,
+  belowskip=0.6em,
+  captionpos=t
+}
+
+\newcommand{\snippetspace}{\Needspace{16\baselineskip}}
 
 \title{High-Performance Cholesky Factorization with OpenMP\\
        \large MPhil Data Intensive Science --- C2 High Performance Computing}
@@ -21,88 +42,95 @@
 \begin{document}
 
 \maketitle
-
 \begin{abstract}
-An in-place Cholesky factorization routine $C = LL^T$ was implemented in C and
-optimised in several stages for a single 76-core CSD3 icelake node.
+This coursework develops an in-place Cholesky factorization routine
+\(C = LL^T\) in C for a single 76-core CSD3 icelake node, using OpenMP for
+shared-memory parallelism.
 
-Correctness was verified using exact small examples, reconstruction residuals,
-output-layout checks, and consistency across thread counts.
-Compiler optimisations and simple loop transformations improved single-thread
-performance by around 13--16$\times$ compared to an \texttt{-O0} baseline.
+The implementation was built in stages. I began from the provided baseline
+algorithm (\texttt{v1}), then first improved single-thread performance through
+better memory access and compiler optimisation (\texttt{v2}). I next added a
+straightforward OpenMP parallelisation of the trailing update (\texttt{v3}).
+This improved performance at moderate thread counts, but scaled poorly at high
+thread counts because the algorithm still required synchronisation at every
+column step.
 
-A straightforward OpenMP parallelisation achieves good performance at moderate
-thread counts, but performance decreases at higher thread counts, likely due to
-synchronisation overhead.
+To reduce this overhead, I rewrote the algorithm in blocked form
+(\texttt{v4}), processing panels of width \(\mathrm{NB}=96\). This reduced the
+number of global synchronisation points from \(O(n)\) to
+\(3\lceil n/\mathrm{NB}\rceil\) per factorisation and improved strong scaling
+substantially. I then introduced several locality- and throughput-oriented
+optimisations in the final version (\texttt{v5}), including column packing,
+private per-thread panel storage, four-way unrolling of the trailing update,
+and round-robin scheduling in the triangular update phase.
 
-To address this, the algorithm was restructured into a panel-blocked
-(right-looking) form with panel width $\mathrm{NB}=96$. This reduces the number
-of global synchronisation steps and improves scalability. This version
-(\texttt{v4\_openmp\_blocked}) achieves a speedup of 59.5$\times$ and a
-parallel efficiency of 78.2\% at 76 threads for $n=8000$.
-
-Further optimisations aimed at improving data locality and instruction-level
-parallelism (including column packing, per-thread panel storage, and loop
-unrolling) improved single-thread performance by a factor of 2.52 compared to
-the initial blocked version. A round-robin scheduling strategy was also used
-to improve load balance in the triangular update phase.
-
-The final implementation (\texttt{v5\_openmp\_blocked}) reaches
-182.7~GFLOP/s at 76 threads for $n=8000$,
-representing a 24\% improvement over \texttt{v4\_openmp\_blocked} at 76 threads.
+Correctness was checked throughout using exact small examples, reconstruction
+residuals, output-layout checks, and agreement across thread counts. Relative
+to the \texttt{-O0} baseline, the serially optimised version improves
+single-thread performance by around 13--16\(\times\). The blocked OpenMP
+version \texttt{v4\_openmp\_blocked} reaches 147.2~GFLOP/s at 76 threads for
+\(n=8000\), corresponding to a speedup of 59.5\(\times\) and a parallel
+efficiency of 78.2\%. The final implementation,
+\texttt{v5\_openmp\_blocked} (tag \texttt{v0.6-cache-opts}), reaches
+182.7~GFLOP/s at 76 threads for \(n=8000\), a 24\% improvement over
+\texttt{v4\_openmp\_blocked} at the same thread count.
 \end{abstract}
 
 \section{Introduction}
 
-Cholesky factorization $C = LL^T$ is widely used in applications such as
-Gaussian process regression, Bayesian inference, and numerical optimisation.
-In these settings, it is often required to compute both the inverse and the
-determinant of a symmetric positive-definite covariance matrix.
-
-Given a covariance matrix $C \in \mathbb{R}^{n \times n}$ with entries
-\[
-C_{ij} = \langle (x_i - \langle x_i \rangle)(x_j - \langle x_j \rangle) \rangle,
-\]
-the log-determinant can be computed from the Cholesky factor as
+Cholesky factorization is a standard tool in scientific computing whenever a
+symmetric positive-definite matrix must be inverted, solved against, or used to
+compute a determinant. In the context of covariance matrices, this is
+particularly important because the log-determinant can be recovered directly
+from the diagonal of the Cholesky factor,
 \begin{equation}
   \log |C| = 2 \sum_{p=0}^{n-1} \log L_{pp}.
 \end{equation}
 
-The computational cost of the factorisation is $O(n^3)$, so performance is
-critical for large matrices. At the same time, numerical correctness must be
-maintained.
+For dense \(n \times n\) matrices, the cost of Cholesky factorization is
+\(O(n^3)\), so even moderate increases in efficiency can have a large effect on
+runtime. The main challenge in this coursework was therefore not only to
+produce a correct implementation, but to improve its performance in a controlled
+way and to justify each optimisation with measurements.
 
-This report describes the development and optimisation of an OpenMP-based
-Cholesky factorisation routine on a single CSD3 icelake node.
-The final implementation (\texttt{v5\_openmp\_blocked}, tag
-\texttt{v0.6-cache-opts}) achieves 182.7~GFLOP/s at 76 threads for $n=8000$.
+I approached the coursework as a sequence of implementation stages. First, I
+established a working baseline that follows the provided algorithm directly.
+Second, I improved its single-thread behaviour by changing loop order and
+reducing unnecessary memory traffic. Third, I parallelised the trailing update
+with OpenMP and measured how far this simple approach would scale. Finally,
+after observing that the flat OpenMP version scaled poorly at high thread
+counts, I restructured the algorithm into a blocked form and then optimised the
+blocked kernel further for cache locality, instruction-level parallelism, and
+load balance.
 
-For smaller matrices (e.g.\ $n=2000$), higher throughput is observed
-(238.4~GFLOP/s at 76 threads), which is consistent with better cache utilisation.
-For larger matrices, performance decreases, which is likely due to increased
-pressure on the memory system.
+This report follows that development path. Rather than presenting only the
+final code, it explains what was changed at each stage, why the change was made,
+and how the measured results motivated the next step. The final implementation,
+\texttt{v5\_openmp\_blocked} (tag \texttt{v0.6-cache-opts}), achieves
+182.7~GFLOP/s at 76 threads for \(n=8000\) on a single CSD3 icelake node.
 
+For smaller matrices, higher throughput is observed
+(for example 238.4~GFLOP/s at \(n=2000\), 76 threads), which is consistent with
+better cache reuse. For larger matrices, throughput decreases, which is
+consistent with increasing pressure on the memory system.
 \section{Algorithm and Interface}
 
 \subsection{Cholesky recurrence}
 
-The factorisation proceeds column by column for $p = 0, \ldots, n-1$.
-At each step, the diagonal element is computed as
+The factorisation proceeds column by column for \(p = 0, \ldots, n-1\).
+At step \(p\), after the contributions from columns \(0,\ldots,p-1\) have
+already been subtracted from the working matrix, the diagonal entry is
 \begin{equation}
-  L_{pp} = \sqrt{C_{pp} - \sum_{s=0}^{p-1} L_{ps}^2},
+  L_{pp} = \sqrt{C_{pp}^{(p)}},
 \end{equation}
-and the entries below the diagonal are given by
+and the entries below the diagonal are
 \begin{equation}
-  L_{ip} = \frac{C_{ip} - \sum_{s=0}^{p-1} L_{is} L_{ps}}{L_{pp}}, \quad i > p.
+  L_{ip} = \frac{C_{ip}^{(p)}}{L_{pp}}, \qquad i > p.
 \end{equation}
-
-These steps must be performed sequentially, as each column depends on the
-previous ones. However, the update of the remaining submatrix,
-\[
-C_{ij} \leftarrow C_{ij} - L_{ip} L_{jp}, \quad i,j > p,
-\]
-can be performed independently across rows and is therefore suitable for
-parallelisation.
+The remaining trailing submatrix is then updated by
+\begin{equation}
+  C_{ij}^{(p+1)} = C_{ij}^{(p)} - L_{ip}L_{jp}, \qquad i,j > p.
+\end{equation}
 
 \subsection{Function interface}
 
@@ -183,6 +211,19 @@ with \texttt{-O0}. The trailing update uses a loop ordering where
 \texttt{c[i*n+j]} is accessed with a large stride in the inner loop.
 For large $n$, this leads to poor cache utilisation and limits performance.
 
+\snippetspace
+Snippet~\ref{lst:v1} shows the baseline trailing update. Because the matrix is
+stored in row-major order, the inner loop over $i$ walks memory with stride
+$n$, which gives poor spatial locality.
+
+\begin{lstlisting}[style=code,caption={Baseline trailing-update kernel in v1.},label={lst:v1}]
+for (int j = p + 1; j < n; j++) {
+    for (int i = p + 1; i < n; i++) {
+        c[i*n + j] -= c[i*n + p] * c[p*n + j];
+    }
+}
+\end{lstlisting}
+
 \subsection{v2 --- Serial optimisation (tag \texttt{v0.2-serial-opt})}
 
 Two simple changes are made to improve single-thread performance:
@@ -198,6 +239,19 @@ Two simple changes are made to improve single-thread performance:
   loaded once per row instead of once per iteration.
 \end{itemize}
 
+\snippetspace
+Snippet~\ref{lst:v2} shows the optimised trailing-update kernel. The outer loop
+now walks rows, while the inner loop sweeps contiguous elements within each row.
+
+\begin{lstlisting}[style=code,caption={Optimised trailing-update kernel in v2.},label={lst:v2}]
+for (int i = p + 1; i < n; i++) {
+    double c_ip = c[i*n + p];
+    for (int j = p + 1; j < n; j++) {
+        c[i*n + j] -= c_ip * c[p*n + j];
+    }
+}
+\end{lstlisting}
+
 With compiler optimisations enabled (\texttt{-O3 -march=native -ffast-math}),
 this version is significantly faster than the baseline.
 
@@ -211,6 +265,26 @@ A single \texttt{omp parallel} region is used around the outer loop to avoid
 repeated thread creation. Within each iteration, \texttt{omp single} is used
 for the diagonal and normalisation steps, followed by a barrier before the
 parallel update.
+
+\snippetspace
+Snippet~\ref{lst:v3} shows the flat OpenMP structure. The key limitation is
+that the \texttt{single} and \texttt{for} regions are encountered once per
+column, so the algorithm still synchronises at every step.
+
+\begin{lstlisting}[style=code,caption={Flat OpenMP structure in v3.},label={lst:v3}]
+#pragma omp parallel default(none) shared(c, n)
+{
+    for (int p = 0; p < n; p++) {
+        #pragma omp single
+        { /* diagonal update and normalisation */ }
+
+        #pragma omp for schedule(static)
+        for (int i = p + 1; i < n; i++) {
+            /* update row i of the trailing submatrix */
+        }
+    }
+}
+\end{lstlisting}
 
 This approach improves performance at moderate thread counts. However, for
 $n=2000$, performance peaks at around 48 threads and then decreases at higher
@@ -231,6 +305,29 @@ three steps are performed:
   \item \textbf{Phase 2 (parallel):} solve for the block below the panel.
   \item \textbf{Phase 3 (parallel):} update the trailing submatrix.
 \end{itemize}
+
+\snippetspace
+Snippet~\ref{lst:v4} shows the blocked outer structure. One synchronisation
+sequence now covers an entire panel rather than a single column.
+
+\begin{lstlisting}[style=code,caption={Panel-blocked structure in v4.},label={lst:v4}]
+for (int k = 0; k < n; k += BLOCK_NB) {
+    int kend = (k + BLOCK_NB < n) ? (k + BLOCK_NB) : n;
+
+    #pragma omp single
+    { /* Phase 1: factor diagonal block */ }
+
+    #pragma omp for schedule(static)
+    for (int i = kend; i < n; i++) {
+        /* Phase 2: TRSM below the panel */
+    }
+
+    #pragma omp for schedule(guided)
+    for (int i = kend; i < n; i++) {
+        /* Phase 3: SYRK trailing update */
+    }
+}
+\end{lstlisting}
 
 This reduces the number of global synchronisation points from $O(n)$ to
 $O(n/\mathrm{NB})$, which improves scalability.
@@ -266,6 +363,26 @@ improve memory access patterns and increase instruction-level parallelism.
   work more evenly across threads, as the amount of work per row increases
   with the row index.
 \end{itemize}
+
+\snippetspace
+Snippet~\ref{lst:v5} illustrates the most performance-critical part of the
+final kernel: the triangular update is assigned round-robin across threads and
+the inner work is unrolled to accumulate four dot products at once.
+
+\begin{lstlisting}[style=code,caption={Round-robin scheduling and four-way unrolling in v5.},label={lst:v5}]
+#pragma omp for schedule(static, 1)
+for (int i = kend; i < n; i++) {
+    for (j = kend; j <= i - 3; j += 4) {
+        double d0 = 0.0, d1 = 0.0, d2 = 0.0, d3 = 0.0;
+        #pragma omp simd reduction(+:d0,d1,d2,d3)
+        for (int p = 0; p < panel_width; p++) {
+            double pi = panel_i[p];
+            d0 += pi * pj0[p]; d1 += pi * pj1[p];
+            d2 += pi * pj2[p]; d3 += pi * pj3[p];
+        }
+    }
+}
+\end{lstlisting}
 
 These changes improve performance, although their individual contributions
 are not isolated in this report. The final version shows a clear improvement
@@ -509,7 +626,7 @@ The difference between the flat and blocked approaches is large.
 The blocked versions significantly outperform v3 across all thread counts.
 The improvement from v4 to v5 is smaller but consistent.
 
-\begin{figure}[h]
+\begin{figure}[H]
   \centering
   \includegraphics[width=\textwidth]{figures/fig6_v3_v4_v5_n8000.pdf}
   \caption{Comparison of v3, v4, and v5 at $n=8000$.}
@@ -527,7 +644,7 @@ At 76 threads, performance decreases from 238.4~GFLOP/s at $n=2000$
 to 182.7~GFLOP/s at $n=8000$.
 This is consistent with reduced cache reuse at larger problem sizes.
 
-\begin{figure}[h]
+\begin{figure}[H]
   \centering
   \includegraphics[width=0.62\textwidth]{figures/fig5_problem_size.pdf}
   \caption{GFLOP/s vs.\ problem size for v5.}

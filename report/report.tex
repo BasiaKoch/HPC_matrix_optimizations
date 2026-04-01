@@ -71,7 +71,7 @@ single-thread performance by around 13--16\(\times\). The blocked OpenMP
 version \texttt{v4\_openmp\_blocked} reaches 147.2~GFLOP/s at 76 threads for
 \(n=8000\), corresponding to a speedup of 59.5\(\times\) and a parallel
 efficiency of 78.2\%. The final implementation,
-\texttt{v5\_openmp\_blocked} (tag \texttt{v0.6-cache-opts}), reaches
+\texttt{v5\_openmp\_blocked} (tag \texttt{v0.5-tuned}), reaches
 182.7~GFLOP/s at 76 threads for \(n=8000\), a 24\% improvement over
 \texttt{v4\_openmp\_blocked} at the same thread count.
 \end{abstract}
@@ -106,7 +106,7 @@ load balance.
 This report follows that development path. Rather than presenting only the
 final code, it explains what was changed at each stage, why the change was made,
 and how the measured results motivated the next step. The final implementation,
-\texttt{v5\_openmp\_blocked} (tag \texttt{v0.6-cache-opts}), achieves
+\texttt{v5\_openmp\_blocked} (tag \texttt{v0.5-tuned}), achieves
 182.7~GFLOP/s at 76 threads for \(n=8000\) on a single CSD3 icelake node.
 
 For smaller matrices, higher throughput is observed
@@ -152,9 +152,9 @@ $n < 1$ or $n > 100000$ are rejected.
 
 The repository contains five main implementation versions of the routine,
 corresponding to successive optimisation stages. These stages are tracked
-with tags \texttt{v0.1-baseline} through \texttt{v0.6-cache-opts}.
+with tags \texttt{v0.1-baseline} through \texttt{v0.5-tuned}.
 The final, fully optimised implementation is
-\texttt{cholesky\_v5\_openmp\_blocked.c} (tag \texttt{v0.6-cache-opts});
+\texttt{cholesky\_v5\_openmp\_blocked.c} (tag \texttt{v0.5-tuned});
 the earlier tagged versions are retained as intermediate development
 stages.
 
@@ -292,7 +292,7 @@ thread counts. This behaviour is consistent with the cost of frequent
 synchronisation becoming significant when the amount of work per thread is
 small.
 
-\subsection{v4\_openmp\_blocked --- Panel-blocked algorithm}
+\subsection{v4\_openmp\_blocked --- Panel-blocked algorithm (tag \texttt{v0.4-blocked})}
 
 To reduce synchronisation overhead, the algorithm is restructured to process
 blocks of columns instead of a single column at a time.
@@ -339,7 +339,7 @@ of synchronisation steps, but may reduce cache efficiency. The optimal value
 is therefore not unique, and $\mathrm{NB}=96$ is used as a consistent choice
 for the main experiments.
 
-\subsection{v5\_openmp\_blocked --- Further optimisation}
+\subsection{v5\_openmp\_blocked --- Further optimisation (tag \texttt{v0.5-tuned})}
 
 Several additional optimisations are introduced on top of v4. These aim to
 improve memory access patterns and increase instruction-level parallelism.
@@ -479,10 +479,6 @@ First OpenMP version (parallel trailing update) \\
 Panel-blocked algorithm \\
 
 \texttt{v0.5-tuned} &
-\texttt{cholesky\_v4\_openmp\_blocked.c} &
-Improved blocked version (NB tuning and full lower-triangle formulation) \\
-
-\texttt{v0.6-cache-opts} &
 \texttt{cholesky\_v5\_openmp\_blocked.c} &
 Final version with improved locality and scheduling \\
 \bottomrule

@@ -37,9 +37,9 @@ synchronisation overhead.
 
 To address this, the algorithm was restructured into a panel-blocked
 (right-looking) form with panel width $\mathrm{NB}=96$. This reduces the number
-of global synchronisation steps and improves scalability. The blocked version
-achieves a speedup of 59.5$\times$ and a parallel efficiency of 78.2\% at
-76 threads for $n=8000$.
+of global synchronisation steps and improves scalability. This version
+(\texttt{v4\_openmp\_blocked}) achieves a speedup of 59.5$\times$ and a
+parallel efficiency of 78.2\% at 76 threads for $n=8000$.
 
 Further optimisations aimed at improving data locality and instruction-level
 parallelism (including column packing, per-thread panel storage, and loop
@@ -47,8 +47,9 @@ unrolling) improved single-thread performance by a factor of 2.52 compared to
 the initial blocked version. A round-robin scheduling strategy was also used
 to improve load balance in the triangular update phase.
 
-The final implementation reaches 182.7~GFLOP/s at 76 threads for $n=8000$,
-representing a 24\% improvement over the previous version.
+The final implementation (\texttt{v5\_openmp\_blocked}) reaches
+182.7~GFLOP/s at 76 threads for $n=8000$,
+representing a 24\% improvement over \texttt{v4\_openmp\_blocked} at 76 threads.
 \end{abstract}
 
 \section{Introduction}
@@ -73,7 +74,8 @@ maintained.
 
 This report describes the development and optimisation of an OpenMP-based
 Cholesky factorisation routine on a single CSD3 icelake node.
-The final implementation achieves 182.7~GFLOP/s at 76 threads for $n=8000$.
+The final implementation (\texttt{v5\_openmp\_blocked}, tag
+\texttt{v0.6-cache-opts}) achieves 182.7~GFLOP/s at 76 threads for $n=8000$.
 
 For smaller matrices (e.g.\ $n=2000$), higher throughput is observed
 (238.4~GFLOP/s at 76 threads), which is consistent with better cache utilisation.
@@ -120,6 +122,14 @@ On return:
 The function returns the wall-clock time in seconds. Inputs with
 $n < 1$ or $n > 100000$ are rejected.
 
+The repository contains five main implementation versions of the routine,
+corresponding to successive optimisation stages. These stages are tracked
+with tags \texttt{v0.1-baseline} through \texttt{v0.6-cache-opts}.
+The final, fully optimised implementation is
+\texttt{cholesky\_v5\_openmp\_blocked.c} (tag \texttt{v0.6-cache-opts});
+the earlier tagged versions are retained as intermediate development
+stages.
+
 \subsection{Correctness verification}
 
 Correctness was assessed using several complementary checks.
@@ -156,8 +166,7 @@ All tests passed in all configurations.
   The implementation correctly handles $n=1$ and rejects invalid sizes.
 
   \item \textbf{Thread consistency.}
-  Results obtained with multiple threads were compared to the single-thread
-  result. No differences were observed, indicating correct synchronisation.
+  Results obtained with multiple threads were compared to the single-thread result. Differences were within tolerance ($\max|\Delta| < 10^{-10}$), indicating correct synchronisation.
 \end{enumerate}
 
 The log-determinant was used as a secondary check only. While it provides a
@@ -305,8 +314,10 @@ matrices place more pressure on the memory system.
 Thread counts $T \in \{1,2,4,8,16,32,48,64,76\}$ were used to study
 strong scaling from a single core to the full node.
 
-Each configuration was run at least three times, and the mean runtime is
-reported with standard deviation error bars.
+Each configuration was run three times; the blocked versions (v4, v5) were
+measured in two independent experiments on separate SLURM jobs, giving six
+timing samples per configuration.
+The mean and standard deviation are computed over all available samples.
 In a small number of cases, variability is higher, but this does not affect
 the relative performance of the implementations.
 
@@ -475,13 +486,16 @@ For $n=8000$, v4 reaches 147.2~GFLOP/s at 76 threads, while v5 reaches
 \toprule
 Version & GFLOP/s & Speedup & Efficiency \\
 \midrule
-v3\_openmp          &  12.9  & ---   & --- \\
+v3\_openmp          &  12.9  & 8.2$\times$  & 10.8\% \\
 v4\_openmp\_blocked & 147.2  & 59.5$\times$ & 78.2\% \\
 v5\_openmp\_blocked & 182.7  & 29.2$\times$ & 38.4\% \\
 \bottomrule
 \end{tabular}
 \end{table}
 
+The low efficiency of v3 (10.8\%) reflects its poor scalability at
+76 threads: the $O(n)$ synchronisation barriers per factorisation become
+the dominant cost at high thread counts.
 The lower efficiency of v5 compared to v4 is mainly due to its higher
 single-thread performance. In absolute terms, v5 is faster at all thread
 counts.
@@ -535,15 +549,15 @@ This makes the overhead more visible at high thread counts.
 The blocked algorithm (v4) reduces the number of synchronisation points,
 which is consistent with the improved scaling observed in the results.
 
-\paragraph{Super-linear speedup.}
-At small thread counts, v3 shows slightly super-linear speedup.
+\paragraph{Near-linear efficiency at low thread counts.}
+At small thread counts, v3 shows high parallel efficiency for $n = 2000$:
+89\% at $T = 2$ and 86\% at $T = 4$.
+This is consistent with improved cache utilisation: each thread operates
+on a smaller portion of the matrix, which fits better in the available
+cache hierarchy.
 
-This behaviour is often associated with improved cache usage:
-as more threads are used, each thread works on a smaller portion of the
-data, which may fit better in cache.
-
-The effect is relatively small and not consistent across all cases,
-so it should be interpreted cautiously.
+Efficiency falls as thread count increases, reaching 10.8\% at 76 threads
+for $n = 8000$, at which point synchronisation overhead dominates.
 
 \paragraph{Efficiency comparison (v4 vs v5).}
 v5 shows lower parallel efficiency than v4, but achieves higher
@@ -553,9 +567,6 @@ This is mainly because efficiency is measured relative to the
 single-thread baseline. Since v5 has higher single-thread performance,
 its efficiency appears lower even though it is faster at all thread
 counts.
-
-For this reason, absolute runtime or GFLOP/s provides a clearer
-comparison between versions.
 
 \paragraph{Effect of problem size.}
 Performance decreases as the matrix size increases.
@@ -583,8 +594,8 @@ reducing the number of synchronisation points.
 Additional changes aimed at improving data locality and loop structure
 further increased performance.
 
-The final implementation reaches 182.7~GFLOP/s at 76 threads for
-$n=8000$ on a CSD3 icelake node.
+The final implementation (\texttt{v5\_openmp\_blocked}) reaches
+182.7~GFLOP/s at 76 threads for $n=8000$ on a CSD3 icelake node.
 
 For larger matrices, performance appears to be limited more by memory
 access than by computation.

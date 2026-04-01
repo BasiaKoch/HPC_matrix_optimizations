@@ -7,6 +7,12 @@
 #define MAX_N 100000
 
 /*
+ * v3_openmp: first working OpenMP version.
+ * Parallelises the trailing-submatrix update while keeping the
+ * column-by-column Cholesky dependency intact.
+ */
+
+/*
  * v3_openmp: parallelise the trailing-submatrix update with OpenMP.
  *
  * Parallelisation strategy
@@ -74,9 +80,7 @@ double mphil_dis_cholesky(double *c, int n)
                 double *row_i = &c[i*n];
                 double c_ip = row_i[p];   /* load once; invariant across j */
 
-                /* omp simd: hint to the compiler to emit SIMD instructions
-                 * (AVX-512 on icelake) for the inner FMA loop.
-                 * The loop has no dependencies across j iterations, making
+                /* The loop has no dependencies across j iterations, making
                  * it safe to vectorise. */
                 #pragma omp simd
                 for (int j = p + 1; j < n; j++)

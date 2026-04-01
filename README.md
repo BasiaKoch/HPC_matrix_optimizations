@@ -39,6 +39,38 @@ make clean
 The build system compiles `src/cholesky_<VERSION>.c` into `lib/libcholesky.a`
 and links it with the test/example binaries.
 
+## Repository Structure
+
+- `src/` — Cholesky implementations for each optimisation stage:
+  `cholesky_v1_baseline.c`, `cholesky_v2_serial_opt.c`,
+  `cholesky_v3_openmp.c`, `cholesky_v4_openmp_blocked.c`,
+  and `cholesky_v5_openmp_blocked.c`.
+- `include/` — Public interface header `mphil_dis_cholesky.h`.
+- `test/` — Test and benchmarking programs:
+  `test_correctness.c` runs the validation suite and `benchmark.c`
+  emits CSV timing rows for the benchmarking scripts.
+- `example/` — Minimal usage example in `example.c` and a CSD3 submit
+  script in `submit_csd3.slurm`.
+- `scripts/` — Helper scripts for running experiments and generating figures:
+  `csd3_serial.slurm`, `csd3_scaling.slurm`, `csd3_block_sweep.slurm`,
+  `csd3_correctness.slurm`, `compare_versions.sh`, `sweep_block_size.sh`,
+  `plot_results.py`, and `plot_block_sweep.py`.
+- `results/` — Benchmark outputs and derived CSV summaries.
+  The main report figures are generated from:
+  `results/csd3_serial.csv` for serial figures,
+  `results/csd3_scaling.csv` for scaling/problem-size figures,
+  and `results/block_sweep.csv` for the panel-width sweep.
+  `results/block_sweep_summary.csv` is written by `plot_block_sweep.py`
+  as a compact summary of the best `BLOCK_NB` by thread count.
+- `report/` — Submission report source and outputs:
+  `report.tex`, final PDF `report.pdf`, and the generated figure PDFs in
+  `report/figures/`.
+- `Makefile` — Central build logic for the library, example, tests, and
+  benchmark binary.
+- `README.md` — Project overview, build instructions, and usage notes.
+- `MPhil_DIS_C2_coursework.pdf` and `C2_Coursework.pdf` — Copies of the
+  coursework brief kept in the repository root.
+
 ## Available Versions
 
 | Version | Description |
@@ -159,4 +191,3 @@ parts of the test suite, and suggest debugging steps when investigating
 correctness or performance issues. All generated suggestions were reviewed,
 adapted, and validated before inclusion, and I remain responsible for the
 final code, tests, experiments, and report.
-
